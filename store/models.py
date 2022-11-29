@@ -2,7 +2,12 @@ from itertools import product
 from django.db import models
 
 from users.models import User
+from django.utils.translation import gettext_lazy as _
 
+
+
+def upload_to(instance, filename):
+    return 'products/{filename}'.format(filename=filename) 
 
 class Supplier(models.Model):
     companyName = models.CharField(max_length=200, default='')
@@ -65,6 +70,7 @@ class Product(models.Model):
     supplier = models.CharField(max_length=50, default='')
     category = models.ForeignKey('Category', on_delete=models.CASCADE, default='')
     images = models.CharField(max_length=120 , default='')
+    image = models.ImageField(_('Image'), upload_to= upload_to, default='products/default.png')
     sortno = models.PositiveIntegerField()
     created_date = models.DateField(auto_now_add=True)
 

@@ -98,6 +98,17 @@ DATABASES = {
     }
 }
 
+"""
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'inventory',
+        'USER': 'root',
+        'PASSWORD': '',
+        'PORT': '3306'
+    }
+}
 
 """
 DATABASES = {
@@ -107,7 +118,7 @@ DATABASES = {
     }
 }
 
-
+"""
 
 
 # Password validation
@@ -182,3 +193,7 @@ LOGGING = {
     },
     }
 
+
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'

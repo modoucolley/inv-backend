@@ -11,6 +11,7 @@ from rest_framework.response import Response
 from django.http import JsonResponse
 from rest_framework import status
 from django.db.models import Sum
+from rest_framework.parsers import MultiPartParser, FormParser
 
 
 from users.models import User
@@ -40,8 +41,10 @@ import logging
 logger = logging.getLogger('app_api')
 
 
+parser_classes = [MultiPartParser, FormParser]
+
 @api_view(['GET', 'POST'])
-def product_list(request):
+def product_list(request, format=None):
     if request.method == 'GET':
         products = Product.objects.all()
 
@@ -61,6 +64,7 @@ def product_list(request):
                 "status": item.status,
                 "sortno": item.sortno,
                 "images": item.images,
+                "image": str(item.image),
                 "category": serializerCategory.data,
                 
             })
@@ -70,6 +74,8 @@ def product_list(request):
         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': productList})
 
     if request.method == 'POST':
+        print("Adding Product")
+        print(request.data)
         serializer = ProductSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
