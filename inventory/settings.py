@@ -98,7 +98,6 @@ DATABASES = {
     }
 }
 
-"""
 
 DATABASES = {
     'default': {
@@ -111,6 +110,8 @@ DATABASES = {
 }
 
 """
+
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -118,7 +119,7 @@ DATABASES = {
     }
 }
 
-"""
+
 
 
 # Password validation
