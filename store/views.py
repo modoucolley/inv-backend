@@ -63,7 +63,6 @@ def product_list(request, format=None):
                 "stock": item.stock,
                 "status": item.status,
                 "sortno": item.sortno,
-                "images": item.images,
                 "image": str(item.image),
                 "category": serializerCategory.data,
                 

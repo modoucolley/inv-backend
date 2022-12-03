@@ -6,7 +6,7 @@ from .models import Category, Delivery, Product, ProductQuantity, Supplier, Buye
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'label', 'tags', 'price', 'stock', 'status', 'sortno', 'category', 'images', 'image']
+        fields = ['id', 'name', 'label', 'tags', 'price', 'stock', 'status', 'sortno', 'category', 'image']
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
