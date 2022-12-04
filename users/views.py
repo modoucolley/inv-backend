@@ -8,7 +8,7 @@ from rest_framework.exceptions import AuthenticationFailed
 from .serializers import UserSerializer
 from .models import User
 import jwt, datetime
-
+from rest_framework.decorators import api_view
 from .forms import LoginForm
 
 
@@ -45,6 +45,7 @@ class Login(APIView):
         }
 
         userObject = {
+            'id': user.id,  
             'name': user.firstname + ' ' + user.lastname,
             'email': user.email,
             'streetAddress': user.streetAddress,
@@ -69,8 +70,6 @@ class Login(APIView):
             'user': userObject
         }})
     
-
-
 
 class AuthenticateUser(APIView):
     def get(self, request):
@@ -102,7 +101,6 @@ class Logout(APIView):
 
 
 
-
 def login_page(request):
     forms = LoginForm()
     if request.method == 'POST':
@@ -121,3 +119,81 @@ def login_page(request):
 def logout_page(request):
     logout(request)
     return redirect('login')
+
+
+@api_view(['GET', 'POST'])
+def admin_list(request):
+    if request.method == 'GET':
+        customers = User.objects.filter(is_admin=True)
+        serializer = UserSerializer(customers, many=True)
+        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def admin_details(request, id):
+
+    try:
+        customer = User.objects.filter(is_admin=True).get(pk=id)
+
+    except User.DoesNotExist:
+        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
+
+    if request.method == 'GET':
+        serializer = UserSerializer(customer)
+        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+
+    elif request.method == 'PUT':
+        serializer = UserSerializer(customer, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+    
+    elif request.method == 'DELETE':
+        customer.delete()
+        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
+    
+
+
+
+
+
+@api_view(['GET', 'POST'])
+def customer_list(request):
+    if request.method == 'GET':
+        customers = User.objects.filter(is_customer=True)
+        serializer = UserSerializer(customers, many=True)
+        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def customer_details(request, id):
+
+    try:
+        customer = User.objects.filter(is_customer=True).get(pk=id)
+
+    except User.DoesNotExist:
+        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
+
+    if request.method == 'GET':
+        serializer = UserSerializer(customer)
+        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+
+    elif request.method == 'PUT':
+        serializer = UserSerializer(customer, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+    
+    elif request.method == 'DELETE':
+        customer.delete()
+        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
+    
+
+
+
+
+

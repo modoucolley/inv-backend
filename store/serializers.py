@@ -6,7 +6,7 @@ from .models import Category, Delivery, Product, ProductQuantity, Supplier, Buye
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'label', 'tags', 'price', 'stock', 'status', 'sortno', 'category', 'image']
+        fields = ['id', 'name', 'userid', 'label', 'tags', 'price', 'stock', 'status', 'sortno', 'category', 'image']
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
@@ -29,7 +29,7 @@ class ProductOrderSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
-        fields = ['id', 'products', 'buyer', 'type',
+        fields = ['id',"userid", 'products', 'buyer', 'type',
                   'status', 'receipt', 'total_price']
         depth = 1
 
@@ -41,5 +41,5 @@ class DeliveriesSerializer(serializers.ModelSerializer):
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'description', 'userid']
 

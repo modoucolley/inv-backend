@@ -69,9 +69,12 @@ class Product(models.Model):
     status = models.CharField(max_length=120, choices=STATUS_CHOICE, default='')
     supplier = models.CharField(max_length=50, default='')
     category = models.ForeignKey('Category', on_delete=models.CASCADE, default='')
-    image = models.ImageField(_('Image'), upload_to= upload_to, default='products/default.png')
+    email = models.CharField(max_length=120, null=False, default='default@gmail.com')
     sortno = models.PositiveIntegerField()
     created_date = models.DateField(auto_now_add=True)
+    image = models.ImageField(_('Image'), upload_to= upload_to, default='products/default.png')
+    userid = models.ForeignKey(User, on_delete=models.CASCADE, default='')
+
 
     def __str__(self):
         return self.name
@@ -97,6 +100,8 @@ class Order(models.Model):
     products = models.ManyToManyField(Product, through='ProductQuantity')
     type=models.CharField(max_length=20, choices=TYPE_CHOICE, default='')
     created_date = models.DateField(auto_now_add=True)
+    userid = models.ForeignKey(User, on_delete=models.CASCADE, default='')
+
 
     def __str__(self):
         return self.buyer
@@ -129,6 +134,7 @@ class Category(models.Model):
     name = models.CharField(max_length=120, unique=True)
     description = models.CharField(max_length=220)
     created_date = models.DateField(auto_now_add=True)
-
+    userid = models.ForeignKey(User, on_delete=models.CASCADE, default='')
+    
     def __str__(self):
         return self.name
