@@ -100,7 +100,7 @@ DATABASES = {
     }
 }
 
-"""
+
 
 DATABASES = {
     'default': {
@@ -121,7 +121,7 @@ DATABASES = {
     }
 }
 
-"""
+
 
 
 
