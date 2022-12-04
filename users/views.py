@@ -69,7 +69,61 @@ class Login(APIView):
             'jwt': token,
             'user': userObject
         }})
-    
+
+
+
+
+class LoginAdmin(APIView):
+    def post(self, request):
+        email = request.data['email']
+        password = request.data['password']
+        user = User.objects.filter(email=email).filter(is_admin=True).first()
+
+        if user is None:
+            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
+            'message': 'User Not Found',
+            }})
+
+        if not user.check_password(password):
+            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
+            'message': 'Incorrect Password',
+            }})
+
+        payload = {
+
+            'id': user.id,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
+            'iat': datetime.datetime.utcnow()
+        }
+
+        userObject = {
+            'id': user.id,  
+            'name': user.firstname + ' ' + user.lastname,
+            'email': user.email,
+            'streetAddress': user.streetAddress,
+            'postcode': user.postcode,
+            'city': user.city,
+            'region': user.region,
+            'contact': user.contact,
+        }
+
+        token = jwt.encode(payload, 'secret', algorithm='HS256')
+        
+        response = Response()
+        response.set_cookie(key='jwt', value=token, httponly=True)
+        response.data = {
+            'message': 'success',
+            'jwt': token
+        }
+        #return response
+        return JsonResponse(status=status.HTTP_200_OK, data={'status':'true','message':'success', 'result': {
+            'message': 'success',
+            'jwt': token,
+            'user': userObject
+        }})
+
+
+
 
 class AuthenticateUser(APIView):
     def get(self, request):

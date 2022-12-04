@@ -13,6 +13,7 @@ urlpatterns = [
     path('', dashboard, name='dashboard'),
     path('api/',  include('store.urls')),
     path('user/', include('users.urls')),
+
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
