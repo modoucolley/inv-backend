@@ -36,7 +36,6 @@ urlpatterns = [
     path('products/<int:id>', product_details),
     path('products/customers/<int:customerId>', customer_products),
 
-
     path('suppliers/', supplier_list),
     path('suppliers/<int:id>', supplier_details),
 
@@ -46,7 +45,6 @@ urlpatterns = [
     path('orders/', order_list),
     path('orders/<int:id>', order_details),
     path('orders/customers/<int:customerId>', customer_orders),
-
 
     path('invoices/', invoice_list),
     path('invoices/<int:id>', invoice_details),

@@ -9,68 +9,29 @@ from .serializers import UserSerializer
 from .models import User
 import jwt, datetime
 from rest_framework.decorators import api_view
-from .forms import LoginForm
+
+import logging
+logger = logging.getLogger('app_api')
 
 
-class Register(APIView):
+class RegisterAdmin(APIView):
     def post(self, request):
+        request.data["is_admin"] = True
+        serializer = UserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        #Ílogger.info(serializer)
+        serializer.save()
+
+        return JsonResponse(status=status.HTTP_201_CREATED, data={'status':'true','message':'success', 'result': serializer.data})
+    
+
+class RegisterCustomer(APIView):
+    def post(self, request):
+        request.data["is_customer"] = True
         serializer = UserSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return JsonResponse(status=status.HTTP_201_CREATED, data={'status':'true','message':'success', 'result': serializer.data})
-    
-    
-
-class Login(APIView):
-    def post(self, request):
-        email = request.data['email']
-        password = request.data['password']
-        user = User.objects.filter(email=email).first()
-
-        if user is None:
-            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
-            'message': 'User Not Found',
-            }})
-
-        if not user.check_password(password):
-            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
-            'message': 'Incorrect Password',
-            }})
-
-        payload = {
-
-            'id': user.id,
-            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
-            'iat': datetime.datetime.utcnow()
-        }
-
-        userObject = {
-            'id': user.id,  
-            'name': user.firstname + ' ' + user.lastname,
-            'email': user.email,
-            'streetAddress': user.streetAddress,
-            'postcode': user.postcode,
-            'city': user.city,
-            'region': user.region,
-            'contact': user.contact,
-        }
-
-        token = jwt.encode(payload, 'secret', algorithm='HS256')
-        
-        response = Response()
-        response.set_cookie(key='jwt', value=token, httponly=True)
-        response.data = {
-            'message': 'success',
-            'jwt': token
-        }
-        #return response
-        return JsonResponse(status=status.HTTP_200_OK, data={'status':'true','message':'success', 'result': {
-            'message': 'success',
-            'jwt': token,
-            'user': userObject
-        }})
-
-
 
 
 class LoginAdmin(APIView):
@@ -90,6 +51,57 @@ class LoginAdmin(APIView):
             }})
 
         payload = {
+            'id': user.id,
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
+            'iat': datetime.datetime.utcnow()
+        }
+
+        userObject = {
+            'id': user.id,  
+            'name': user.firstname + ' ' + user.lastname,
+            'email': user.email,
+            'streetAddress': user.streetAddress,
+            'postcode': user.postcode,
+            'city': user.city,
+            'region': user.region,
+            'contact': user.contact,
+        }
+
+        token = jwt.encode(payload, 'secret', algorithm='HS256')
+        
+        response = Response()
+        response.set_cookie(key='jwt', value=token, httponly=True)
+        response.data = {
+            'message': 'success',
+            'jwt': token
+        }
+        #return response
+        return JsonResponse(status=status.HTTP_200_OK, data={'status':'true','message':'success', 'result': {
+            'message': 'success',
+            'jwt': token,
+            'user': userObject
+        }})
+
+
+
+
+class LoginCustomer(APIView):
+    def post(self, request):
+        email = request.data['email']
+        password = request.data['password']
+        user = User.objects.filter(email=email).filter(is_customer=True).first()
+
+        if user is None:
+            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
+            'message': 'User Not Found',
+            }})
+
+        if not user.check_password(password):
+            return JsonResponse(status=status.HTTP_401_UNAUTHORIZED, data={'status':'false','message':'failure', 'result': {
+            'message': 'Incorrect Password',
+            }})
+
+        payload = {
 
             'id': user.id,
             'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60),
@@ -121,6 +133,7 @@ class LoginAdmin(APIView):
             'jwt': token,
             'user': userObject
         }})
+
 
 
 
@@ -155,26 +168,6 @@ class Logout(APIView):
 
 
 
-def login_page(request):
-    forms = LoginForm()
-    if request.method == 'POST':
-        forms = LoginForm(request.POST)
-        if forms.is_valid():
-            username = forms.cleaned_data['username']
-            password = forms.cleaned_data['password']
-            user = authenticate(username=username, password=password)
-            if user:
-                login(request, user)
-                return redirect('dashboard')
-    context = {'form': forms}
-    return render(request, 'users/login.html', context)
-
-
-def logout_page(request):
-    logout(request)
-    return redirect('login')
-
-
 @api_view(['GET', 'POST'])
 def admin_list(request):
     if request.method == 'GET':
@@ -183,10 +176,8 @@ def admin_list(request):
         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
 
 
-
 @api_view(['GET', 'PUT', 'DELETE'])
 def admin_details(request, id):
-
     try:
         customer = User.objects.filter(is_admin=True).get(pk=id)
 
