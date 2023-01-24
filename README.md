@@ -8,14 +8,13 @@ git clone {the url to the GitHub repo}
 
 ```
 cd ..
-pip install virtualenv
+pip install virtualenv ...In case you do not have Virtual Env not installed
 python -m venv inventoryapp_env
 ```
 
 ```
 inventoryapp_env/Scripts/activate
-deactivate
-npm start
+deactivate  ... To deactivate the Virtual Env
 ```
 
 ```diff

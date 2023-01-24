@@ -17,3 +17,6 @@ pytz==2020.1
 sqlparse==0.3.1
 tzdata==2022.6
 whitenoise==6.2.0
+djangorestframework-simplejwt
+APScheduler==3.9.1.post1
+twilio==7.16.1

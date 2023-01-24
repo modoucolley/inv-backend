@@ -1,254 +1,173 @@
-from ast import Or
-from math import prod
-from unittest import result
-from django.shortcuts import render, redirect
-from django.views.generic import ListView
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
-from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, BuyerSerializer, OrderSerializer, DeliveriesSerializer
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.http import JsonResponse
-from rest_framework import status
 from django.db.models import Sum
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import generics, mixins, viewsets, filters, permissions
+from rest_framework.permissions import SAFE_METHODS, BasePermission, IsAdminUser,DjangoModelPermissionsOrAnonReadOnly, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.permissions import (IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly, IsAdminUser)
+from rest_framework.request import Request
+from django.http import HttpResponse
 
-
-from users.models import User
-from users.serializers import UserSerializer
-from .models import (
-    ProductQuantity,
-    Supplier,
-    Buyer,
-    Season,
-    Drop,
-    Product,
-    Order,
-    Delivery,
-    Category
-)
-from .forms import (
-    SupplierForm,
-    BuyerForm,
-    SeasonForm,
-    DropForm,
-    ProductForm,
-    OrderForm,
-    DeliveryForm
-)
-
-import logging
-logger = logging.getLogger('app_api')
+from users.models import CustomUser
+from .models import ( Product, OrderProducts, Supplier, Buyer, Order, Delivery, Category)
+from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, BuyerSerializer, OrderSerializer, DeliveriesSerializer
 
 
 parser_classes = [MultiPartParser, FormParser]
 
-@api_view(['GET', 'POST'])
-def product_list(request, format=None):
-    if request.method == 'GET':
-        products = Product.objects.all()
-
-        productList = []
-        for item in products.iterator():
-            logger.error(item.category.id)
-            aCategory = Category.objects.get(id=item.category.id)
-            serializerCategory = CategorySerializer(aCategory)
-            
-            productList.append({
-                "id": item.id,
-                "name": item.name,
-                "label": item.label,
-                "tags": item.tags,
-                "price": item.price,
-                "email": item.email,
-                "stock": item.stock,
-                "status": item.status,
-                "sortno": item.sortno,
-                "image": str(item.image),
-                "category": serializerCategory.data,
-            })
 
 
-        serializer = ProductSerializer(products, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': productList})
+#### TWILIO 
 
-    if request.method == 'POST':
-        print("Adding Product")
-        print(request.data)
-        serializer = ProductSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        else:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+from twilio.rest import Client
+from django.views.decorators.csrf import csrf_exempt
 
+account_sid = 'ACa3061a8c10d45fe7dad1c698fad82ff3'
+authToken = '9587c5e7b8dcd9d5448203fa302b591d'
+client = Client(account_sid, authToken)
 
-@api_view(['GET', 'PUT', 'DELETE'])
-def product_details(request, id):
+@csrf_exempt
+def twilio(request):
+    #message = request.POST["message"]
+    client.messages.create(
+        from_='whatsapp:+14155238886',
+        body= "Hi",
+        #media_url='https://www.aims.ca/site/media/aims/2.pdf',
+        #media_url='https://91d7-197-255-199-14.eu.ngrok.io/static/images/gooo.pdf',
+        to='whatsapp:+2207677435',
+    )
+    print(request.POST)
 
-    try:
-        product = Product.objects.get(pk=id)
-
-    except Product.DoesNotExist:
-        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Product Does Not Exist', 'result': []})
-
-    if request.method == 'GET':
-        serializer = ProductSerializer(product)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-
-    elif request.method == 'PUT':
-        serializer = ProductSerializer(product, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
-
-    elif request.method == 'DELETE':
-        product.delete()
-        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+    return HttpResponse("Hello")
 
 
-@api_view(['GET'])
-def customer_products(request, customerId):
+
+
+### PRODUCT PERMISSIONS
+
+class ProductPermission(BasePermission):
+    message = 'Editing Products is Restricted to The owner only'
+
+    def has_object_permission(self, request, view, obj):
+
+        if request.method in SAFE_METHODS:
+            return True
+        
+        return obj.owner == request.user
+
+
+### LIST ALL CUSTOMER PRODUCTS / CREATE A PRODUCT
+
+class ProductListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductSerializer
+    queryset = Product.objects.all()  
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    def get_queryset(self):
+        user = self.request.user
+        return Product.objects.filter(owner=user)
+
+
+
+### LIST DETAIL OF ONE PRODUCT / UPDATE / DELETE
+
+class ProductRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductSerializer
+    queryset = Product.objects.all()
+
+    # Define Custom Queryset
+    def get_object(self, queryset=None, **kwargs):
+        item = self.kwargs.get('pk')
+        user = self.request.user
+        return get_object_or_404(Product, id=item, owner=user)
+
+
     
-    if request.method == 'GET':
-        products = Product.objects.filter(userid=customerId)
-
-        productList = []
-        for item in products.iterator():
-            logger.error(item.category.id)
-            aCategory = Category.objects.get(id=item.category.id)
-            serializerCategory = CategorySerializer(aCategory)
-            
-            productList.append({
-                "id": item.id,
-                "name": item.name,
-                "label": item.label,
-                "tags": item.tags,
-                "price": item.price,
-                "email": item.email,
-                "stock": item.stock,
-                "status": item.status,
-                "sortno": item.sortno,
-                "image": str(item.image),
-                "category": serializerCategory.data,
-            })
 
 
-        serializer = ProductSerializer(products, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': productList})
+### LIST ALL CUSTOMER PRODUCTS CATEGORIES / CREATE A PRODUCT CATEGORY
+
+class CategoryListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CategorySerializer
+    queryset = Category.objects.all() 
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user) 
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
 
 
-@api_view(['GET', 'POST'])
-def supplier_list(request):
-    if request.method == 'GET':
-        supplier = Supplier.objects.all()
-        serializer = SupplierSerializer(supplier, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
 
-    if request.method == 'POST':
-        serializer = SupplierSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        else:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+### LIST DETAIL OF ONE CATEGORY / UPDATE / DELETE
 
+class CategoryRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CategorySerializer
+    queryset = Category.objects.all()
 
-@api_view(['GET', 'PUT', 'DELETE'])
-def supplier_details(request, id):
-
-    try:
-        supplier = Supplier.objects.get(pk=id)
-
-    except Supplier.DoesNotExist:
-        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Supplier Does Not Exist', 'result': []})
-
-    if request.method == 'GET':
-        serializer = SupplierSerializer(supplier)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-
-    elif request.method == 'PUT':
-        serializer = SupplierSerializer(supplier, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
-
-    elif request.method == 'DELETE':
-        supplier.delete()
-        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+    # Define Custom Queryset
+    def get_object(self, queryset=None, **kwargs):
+        item = self.kwargs.get('pk')
+        user = self.request.user
+        return get_object_or_404(Category, id=item, owner=user)
 
 
-@api_view(['GET', 'POST'])
-def buyer_list(request):
-    if request.method == 'GET':
-        buyer = Buyer.objects.all()
-        serializer = BuyerSerializer(buyer, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-
-    if request.method == 'POST':
-        serializer = BuyerSerializer(data=request.data)
-        if serializer.is_valid():
-
-            serializer.save()
-            return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        else:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
 
 
-@api_view(['GET', 'PUT', 'DELETE'])
-def buyer_details(request, id):
+### LIST ALL CUSTOMER ORDERS / CREATE A CUSTOMER ORDER
 
-    try:
-        buyer = Buyer.objects.get(pk=id)
+class OrderListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    queryset = Order.objects.all()  
 
-    except Buyer.DoesNotExist:
-        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
-    if request.method == 'GET':
-        serializer = BuyerSerializer(buyer)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+    def get_queryset(self):
+        user = self.request.user
+        return Order.objects.filter(owner=user)
 
-    elif request.method == 'PUT':
-        serializer = BuyerSerializer(buyer, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
 
-    elif request.method == 'DELETE':
-        buyer.delete()
-        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
 
+### LIST ALL CUSTOMER ORDERS / CREATE A CUSTOMER ORDER
 
 @api_view(['GET', 'POST'])
 def order_list(request):
     if request.method == 'GET':
-        #GET THE NUMBER OF ORDERS
-        order = Order.objects.filter().exclude(type="invoice")
+        user = request.user
+        order = Order.objects.filter(owner=user).exclude(type="invoice")
         orderList = []
         for item in order.iterator():
             productList = []
-            #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
-            logger.info(item.id)
             price = 0
-            productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+            productsOrders = OrderProducts.objects.filter(order_id=item.id)
+
             for productsOrdersItem in productsOrders.iterator():
-                #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
-                logger.info(productsOrdersItem.product_id)
                 aProduct = Product.objects.get(id=productsOrdersItem.product_id)
                 productList.append( {
                         "id": aProduct.id,
                         "name": aProduct.name,
                         "label": aProduct.label,
                         "price": aProduct.price,
-                        "quantity": productsOrdersItem.product_quantity,
-                        "amount": aProduct.price * productsOrdersItem.product_quantity
+                        "quantity": productsOrdersItem.quantity,
+                        "amount": aProduct.price * productsOrdersItem.quantity
                     })
-                price = price + (aProduct.price * productsOrdersItem.product_quantity)
-            #logger.info("productList")
-            #logger.info(productList)
+                price = price + (aProduct.price * productsOrdersItem.quantity)
+
             orderList.append(
                     {
                         "id": item.id,
@@ -260,30 +179,23 @@ def order_list(request):
                         "total_price":  price,
                     },
                 )
-            logger.info("orderList")
-            logger.info(orderList)
-
-        
-
         serializer = OrderSerializer(order, many=True)
         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
 
     if request.method == 'POST':
         serializer = OrderSerializer(data=request.data)
         data = request.data
-        customer = User.objects.get(pk=data["userid"])
-        new_order = Order.objects.create(userid = customer, buyer = data["buyer"], status = data["status"], receipt = data["receipt"], type = data["type"], total_price = data["total_price"]  )
+        user = request.user
+        new_order = Order.objects.create(owner = user, buyer = data["buyer"], status = data["status"], receipt = data["receipt"], type = data["type"], total_price = data["total_price"]  )
         new_order.save()
 
         for product in data['products']:    
-            new_product_order = ProductQuantity.objects.create(product_id = product['id'],  order_id = new_order.id, product_quantity = product['amount'])
+            new_product_order = OrderProducts.objects.create(product_id = product['id'],  order_id = new_order.id, quantity = product['amount'])
             new_product_order.save()
 
             try:
                 aproduct = Product.objects.get(pk=product['id'])
                 aproduct.stock = aproduct.stock - product['amount']
-                logger.info("aproduct.stock - product['amount']")
-                logger.info(aproduct.stock - product['amount'])
                 if(aproduct.stock - product['amount'] < 0):
                     new_order.delete()
                     return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message':  'One of the Product Is Out Of Stock', 'result': []})
@@ -293,17 +205,21 @@ def order_list(request):
                 return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message': 'Product Does Not Exist', 'result': []})
 
         if serializer.is_valid():
-            #serializer.save()
             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
         else:
             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
 
+
+
+
+### LIST A SINGLE CUSTOMER ORDERS DETAIL / UPDATE / DELETE
 
 @api_view(['GET', 'PUT', 'DELETE'])
 def order_details(request, id):
 
     try:
-        order = Order.objects.get(pk=id)
+        user = request.user
+        order = Order.objects.filter(owner=user).get(pk=id)
 
     except Order.DoesNotExist:
         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
@@ -325,234 +241,599 @@ def order_details(request, id):
 
 
 
-@api_view(['GET'])
-def customer_orders(request, customerId):
-    if request.method == 'GET':
-        #GET THE NUMBER OF ORDERS
-        order = Order.objects.filter(userid=customerId).exclude(type="invoice")
-        orderList = []
-        for item in order.iterator():
-            productList = []
-            #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
-            logger.info(item.id)
-            price = 0
-            productsOrders = ProductQuantity.objects.filter(order_id=item.id)
-            for productsOrdersItem in productsOrders.iterator():
-                #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
-                logger.info(productsOrdersItem.product_id)
-                aProduct = Product.objects.get(id=productsOrdersItem.product_id)
-                productList.append( {
-                        "id": aProduct.id,
-                        "name": aProduct.name,
-                        "label": aProduct.label,
-                        "price": aProduct.price,
-                        "quantity": productsOrdersItem.product_quantity,
-                        "amount": aProduct.price * productsOrdersItem.product_quantity
-                    })
-                price = price + (aProduct.price * productsOrdersItem.product_quantity)
-            #logger.info("productList")
-            #logger.info(productList)
-            orderList.append(
-                    {
-                        "id": item.id,
-                        "buyer": item.buyer,
-                        "products": productList,
-                        "status": item.status,
-                        "receipt":  item.receipt,
-                        "type":item.type,
-                        "total_price":  price,
-                    },
-                )
-            logger.info("orderList")
-            logger.info(orderList)
-        serializer = OrderSerializer(order, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class ProductList(generics.ListAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = ProductSerializer
+
+#     def get_queryset(self):
+#         user = self.request.user
+#         return Product.objects.filter(owner=user)
+
+
+
+# class ProductDetail(generics.RetrieveAPIView):
+#     #permission_classes = [ProductPermission]
+#     serializer_class = ProductSerializer
+#     queryset = Product.objects.all()
+
+
+#     # Define Custom Queryset
+#     def get_object(self, queryset=None, **kwargs):
+#         item = self.kwargs.get('pk')
+#         user = self.request.user
+#         return get_object_or_404(Product, name=item, owner=user)
+
+
+
+# class ProductListfilter(generics.ListAPIView):
+
+#     queryset = Product.objects.all()
+#     serializer_class = ProductSerializer
+#     filter_backends = [filters.SearchFilter]
+#     search_fields = ['^name']
+
+#     # '^' Starts-with search.
+#     # '=' Exact matches.
+#     # '@' Full-text search. (Currently only supported Django's PostgreSQL backend.)
+#     # '$' Regex search.
+
+
+# class ProductSearch(generics.ListAPIView):
+#     pass
+
+
+
+# class ProductList(generics.ListCreateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     queryset = Product.objects.all()
+#     serializer_class = ProductSerializer
+ 
+
+# class ProductDetail(generics.RetrieveUpdateDestroyAPIView, ProductPermission):
+#     permission_classes = [ProductPermission]
+#     queryset = Product.objects.all()
+#     serializer_class = ProductSerializer
+
+
+
+
+# @api_view(['GET', 'POST'])
+# def product_list(request, format=None):
+#     if request.method == 'GET':
+#         products = Product.objects.all()
+
+#         # productList = []
+#         # for item in products.iterator():
+#         #     print(item.category.id)
+#         #     aCategory = Category.objects.get(id=item.category.id)
+#         #     serializerCategory = CategorySerializer(aCategory)
+            
+#         #     productList.append({
+#         #         "id": item.id,
+#         #         "name": item.name,
+#         #         "label": item.label,
+#         #         "tags": item.tags,
+#         #         "price": item.price,
+#         #         "stock": item.stock,
+#         #         "status": item.status,
+#         #         "sortno": item.sortno,
+#         #         "owner": item.owner,
+#         #         "image": str(item.image),
+#         #         "category": serializerCategory.data,
+#         #     })
+
+
+#         serializer = ProductSerializer(products, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     if request.method == 'POST':
+#         print("Adding Product")
+#         print(request.data)
+#         serializer = ProductSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
+
+
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def product_details(request, id):
+
+#     try:
+#         product = Product.objects.get(pk=id)
+
+#     except Product.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Product Does Not Exist', 'result': []})
+
+#     if request.method == 'GET':
+#         serializer = ProductSerializer(product)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = ProductSerializer(product, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+#     elif request.method == 'DELETE':
+#         product.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+# @api_view(['GET'])
+# def customer_products(request, customerId):
     
+#     if request.method == 'GET':
+#         products = Product.objects.filter(userid=customerId)
 
-@api_view(['GET', 'POST'])
-def invoice_list(request):
-    if request.method == 'GET':
-        #GET THE NUMBER OF ORDERS
-        order = Order.objects.filter(type='invoice')
-        orderList = []
-        for item in order.iterator():
-            productList = []
-            #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
-            logger.info(item.id)
-            price = 0
-            productsOrders = ProductQuantity.objects.filter(order_id=item.id)
-            for productsOrdersItem in productsOrders.iterator():
-                #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
-                logger.info(productsOrdersItem.product_id)
-                aProduct = Product.objects.get(id=productsOrdersItem.product_id)
-                productList.append( {
-                        "id": aProduct.id,
-                        "name": aProduct.name,
-                        "label": aProduct.label,
-                        "price": aProduct.price,
-                        "quantity": productsOrdersItem.product_quantity,
-                        "amount": aProduct.price * productsOrdersItem.product_quantity
-                    })
-                price = price + (aProduct.price * productsOrdersItem.product_quantity)
-            #logger.info("productList")
-            #logger.info(productList)
-            orderList.append(
-                    {
-                        "id": item.id,
-                        "buyer": item.buyer,
-                        "products": productList,
-                        "status": item.status,
-                        "receipt":  item.receipt,
-                        "total_price":  price,
-                    },
-                )
-            logger.info("orderList")
-            logger.info(orderList)
+#         productList = []
+#         for item in products.iterator():
+#             print(item.category.id)
+#             aCategory = Category.objects.get(id=item.category.id)
+#             serializerCategory = CategorySerializer(aCategory)
+            
+#             productList.append({
+#                 "id": item.id,
+#                 "name": item.name,
+#                 "label": item.label,
+#                 "tags": item.tags,
+#                 "price": item.price,
+#                 "email": item.email,
+#                 "stock": item.stock,
+#                 "status": item.status,
+#                 "sortno": item.sortno,
+#                 "image": str(item.image),
+#                 "category": serializerCategory.data,
+#             })
+
+
+#         serializer = ProductSerializer(products, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': productList})
+
+
+# @api_view(['GET', 'POST'])
+# def supplier_list(request):
+#     if request.method == 'GET':
+#         supplier = Supplier.objects.all()
+#         serializer = SupplierSerializer(supplier, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     if request.method == 'POST':
+#         serializer = SupplierSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
+
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def supplier_details(request, id):
+
+#     try:
+#         supplier = Supplier.objects.get(pk=id)
+
+#     except Supplier.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Supplier Does Not Exist', 'result': []})
+
+#     if request.method == 'GET':
+#         serializer = SupplierSerializer(supplier)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = SupplierSerializer(supplier, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+#     elif request.method == 'DELETE':
+#         supplier.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+# @api_view(['GET', 'POST'])
+# def buyer_list(request):
+#     if request.method == 'GET':
+#         buyer = Buyer.objects.all()
+#         serializer = BuyerSerializer(buyer, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     if request.method == 'POST':
+#         serializer = BuyerSerializer(data=request.data)
+#         if serializer.is_valid():
+
+#             serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
+
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def buyer_details(request, id):
+
+#     try:
+#         buyer = Buyer.objects.get(pk=id)
+
+#     except Buyer.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
+
+#     if request.method == 'GET':
+#         serializer = BuyerSerializer(buyer)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = BuyerSerializer(buyer, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+#     elif request.method == 'DELETE':
+#         buyer.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+# @api_view(['GET', 'POST'])
+# def order_list(request):
+#     if request.method == 'GET':
+#         #GET THE NUMBER OF ORDERS
+#         order = Order.objects.filter().exclude(type="invoice")
+#         orderList = []
+#         for item in order.iterator():
+#             productList = []
+#             #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
+#             logger.info(item.id)
+#             price = 0
+#             productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+#             for productsOrdersItem in productsOrders.iterator():
+#                 #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
+#                 logger.info(productsOrdersItem.product_id)
+#                 aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+#                 productList.append( {
+#                         "id": aProduct.id,
+#                         "name": aProduct.name,
+#                         "label": aProduct.label,
+#                         "price": aProduct.price,
+#                         "quantity": productsOrdersItem.product_quantity,
+#                         "amount": aProduct.price * productsOrdersItem.product_quantity
+#                     })
+#                 price = price + (aProduct.price * productsOrdersItem.product_quantity)
+#             #logger.info("productList")
+#             #logger.info(productList)
+#             orderList.append(
+#                     {
+#                         "id": item.id,
+#                         "buyer": item.buyer,
+#                         "products": productList,
+#                         "status": item.status,
+#                         "receipt":  item.receipt,
+#                         "type":item.type,
+#                         "total_price":  price,
+#                     },
+#                 )
+#             logger.info("orderList")
+#             logger.info(orderList)
 
         
 
-        serializer = OrderSerializer(order, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
+#         serializer = OrderSerializer(order, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
 
-    if request.method == 'POST':
-        serializer = OrderSerializer(data=request.data)
-        data = request.data
-        new_order = Order.objects.create(buyer = data["buyer"], status = data["status"])
-        new_order.save()
+#     if request.method == 'POST':
+#         serializer = OrderSerializer(data=request.data)
+#         data = request.data
+#         customer = CustomUser.objects.get(pk=data["userid"])
+#         new_order = Order.objects.create(userid = customer, buyer = data["buyer"], status = data["status"], receipt = data["receipt"], type = data["type"], total_price = data["total_price"]  )
+#         new_order.save()
 
-        for product in data['products']:    
-            new_product_order = ProductQuantity.objects.create(product_id = product['id'],  order_id = new_order.id, product_quantity = product['amount'])
-            new_product_order.save()
+#         for product in data['products']:    
+#             new_product_order = ProductQuantity.objects.create(product_id = product['id'],  order_id = new_order.id, product_quantity = product['amount'])
+#             new_product_order.save()
 
-            try:
-                aproduct = Product.objects.get(pk=product['id'])
-                aproduct.stock = aproduct.stock - product['amount']
-                aproduct.save()
-            except Product.DoesNotExist:
-                return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Product Does Not Exist', 'result': []})
+#             try:
+#                 aproduct = Product.objects.get(pk=product['id'])
+#                 aproduct.stock = aproduct.stock - product['amount']
+#                 logger.info("aproduct.stock - product['amount']")
+#                 logger.info(aproduct.stock - product['amount'])
+#                 if(aproduct.stock - product['amount'] < 0):
+#                     new_order.delete()
+#                     return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message':  'One of the Product Is Out Of Stock', 'result': []})
+#                 else:
+#                     aproduct.save()
+#             except Product.DoesNotExist:
+#                 return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message': 'Product Does Not Exist', 'result': []})
 
-        if serializer.is_valid():
-            #serializer.save()
-            return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        else:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
-
-
-@api_view(['GET', 'PUT', 'DELETE'])
-def invoice_details(request, id):
-
-    try:
-        order = Order.objects.get(pk=id)
-
-    except Order.DoesNotExist:
-        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
-
-    if request.method == 'GET':
-        serializer = OrderSerializer(order)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-
-    elif request.method == 'PUT':
-        serializer = OrderSerializer(order, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
-
-    elif request.method == 'DELETE':
-        order.delete()
-        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+#         if serializer.is_valid():
+#             #serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
 
 
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def order_details(request, id):
 
-@api_view(['GET'])
-def customer_invoices(request, customerId):
-    if request.method == 'GET':
-        #GET THE NUMBER OF ORDERS
-        order = Order.objects.filter(userid=customerId).filter(type="invoice")
-        orderList = []
-        for item in order.iterator():
-            productList = []
-            #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
-            logger.info(item.id)
-            price = 0
-            productsOrders = ProductQuantity.objects.filter(order_id=item.id)
-            for productsOrdersItem in productsOrders.iterator():
-                #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
-                logger.info(productsOrdersItem.product_id)
-                aProduct = Product.objects.get(id=productsOrdersItem.product_id)
-                productList.append( {
-                        "id": aProduct.id,
-                        "name": aProduct.name,
-                        "label": aProduct.label,
-                        "price": aProduct.price,
-                        "quantity": productsOrdersItem.product_quantity,
-                        "amount": aProduct.price * productsOrdersItem.product_quantity
-                    })
-                price = price + (aProduct.price * productsOrdersItem.product_quantity)
-            #logger.info("productList")
-            #logger.info(productList)
-            orderList.append(
-                    {
-                        "id": item.id,
-                        "buyer": item.buyer,
-                        "products": productList,
-                        "status": item.status,
-                        "receipt":  item.receipt,
-                        "type":item.type,
-                        "total_price":  price,
-                    },
-                )
-            logger.info("orderList")
-            logger.info(orderList)
-        serializer = OrderSerializer(order, many=True)
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
+#     try:
+#         order = Order.objects.get(pk=id)
+
+#     except Order.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
+
+#     if request.method == 'GET':
+#         serializer = OrderSerializer(order)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = OrderSerializer(order, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+#     elif request.method == 'DELETE':
+#         order.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+
+# @api_view(['GET'])
+# def customer_orders(request, customerId):
+#     if request.method == 'GET':
+#         #GET THE NUMBER OF ORDERS
+#         order = Order.objects.filter(userid=customerId).exclude(type="invoice")
+#         orderList = []
+#         for item in order.iterator():
+#             productList = []
+#             #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
+#             logger.info(item.id)
+#             price = 0
+#             productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+#             for productsOrdersItem in productsOrders.iterator():
+#                 #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
+#                 logger.info(productsOrdersItem.product_id)
+#                 aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+#                 productList.append( {
+#                         "id": aProduct.id,
+#                         "name": aProduct.name,
+#                         "label": aProduct.label,
+#                         "price": aProduct.price,
+#                         "quantity": productsOrdersItem.product_quantity,
+#                         "amount": aProduct.price * productsOrdersItem.product_quantity
+#                     })
+#                 price = price + (aProduct.price * productsOrdersItem.product_quantity)
+#             #logger.info("productList")
+#             #logger.info(productList)
+#             orderList.append(
+#                     {
+#                         "id": item.id,
+#                         "buyer": item.buyer,
+#                         "products": productList,
+#                         "status": item.status,
+#                         "receipt":  item.receipt,
+#                         "type":item.type,
+#                         "total_price":  price,
+#                     },
+#                 )
+#             logger.info("orderList")
+#             logger.info(orderList)
+#         serializer = OrderSerializer(order, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
+
+    
+
+# @api_view(['GET', 'POST'])
+# def invoice_list(request):
+#     if request.method == 'GET':
+#         #GET THE NUMBER OF ORDERS
+#         order = Order.objects.filter(type='invoice')
+#         orderList = []
+#         for item in order.iterator():
+#             productList = []
+#             #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
+#             logger.info(item.id)
+#             price = 0
+#             productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+#             for productsOrdersItem in productsOrders.iterator():
+#                 #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
+#                 logger.info(productsOrdersItem.product_id)
+#                 aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+#                 productList.append( {
+#                         "id": aProduct.id,
+#                         "name": aProduct.name,
+#                         "label": aProduct.label,
+#                         "price": aProduct.price,
+#                         "quantity": productsOrdersItem.product_quantity,
+#                         "amount": aProduct.price * productsOrdersItem.product_quantity
+#                     })
+#                 price = price + (aProduct.price * productsOrdersItem.product_quantity)
+#             #logger.info("productList")
+#             #logger.info(productList)
+#             orderList.append(
+#                     {
+#                         "id": item.id,
+#                         "buyer": item.buyer,
+#                         "products": productList,
+#                         "status": item.status,
+#                         "receipt":  item.receipt,
+#                         "total_price":  price,
+#                     },
+#                 )
+#             logger.info("orderList")
+#             logger.info(orderList)
+
+        
+
+#         serializer = OrderSerializer(order, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
+
+#     if request.method == 'POST':
+#         serializer = OrderSerializer(data=request.data)
+#         data = request.data
+#         new_order = Order.objects.create(buyer = data["buyer"], status = data["status"])
+#         new_order.save()
+
+#         for product in data['products']:    
+#             new_product_order = ProductQuantity.objects.create(product_id = product['id'],  order_id = new_order.id, product_quantity = product['amount'])
+#             new_product_order.save()
+
+#             try:
+#                 aproduct = Product.objects.get(pk=product['id'])
+#                 aproduct.stock = aproduct.stock - product['amount']
+#                 aproduct.save()
+#             except Product.DoesNotExist:
+#                 return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'true', 'message': 'Product Does Not Exist', 'result': []})
+
+#         if serializer.is_valid():
+#             #serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
+
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def invoice_details(request, id):
+
+#     try:
+#         order = Order.objects.get(pk=id)
+
+#     except Order.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
+
+#     if request.method == 'GET':
+#         serializer = OrderSerializer(order)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = OrderSerializer(order, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+#     elif request.method == 'DELETE':
+#         order.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+
+# @api_view(['GET'])
+# def customer_invoices(request, customerId):
+#     if request.method == 'GET':
+#         #GET THE NUMBER OF ORDERS
+#         order = Order.objects.filter(userid=customerId).filter(type="invoice")
+#         orderList = []
+#         for item in order.iterator():
+#             productList = []
+#             #FOR EACH ORDER, GO TO THE PRODUCTS ORDER TABLE TO GET THE FOREIGN KEY ID 
+#             logger.info(item.id)
+#             price = 0
+#             productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+#             for productsOrdersItem in productsOrders.iterator():
+#                 #FROM THE ORDERS, GET THE PRODUCT ID FOR EACH ORDER 
+#                 logger.info(productsOrdersItem.product_id)
+#                 aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+#                 productList.append( {
+#                         "id": aProduct.id,
+#                         "name": aProduct.name,
+#                         "label": aProduct.label,
+#                         "price": aProduct.price,
+#                         "quantity": productsOrdersItem.product_quantity,
+#                         "amount": aProduct.price * productsOrdersItem.product_quantity
+#                     })
+#                 price = price + (aProduct.price * productsOrdersItem.product_quantity)
+#             #logger.info("productList")
+#             #logger.info(productList)
+#             orderList.append(
+#                     {
+#                         "id": item.id,
+#                         "buyer": item.buyer,
+#                         "products": productList,
+#                         "status": item.status,
+#                         "receipt":  item.receipt,
+#                         "type":item.type,
+#                         "total_price":  price,
+#                     },
+#                 )
+#             logger.info("orderList")
+#             logger.info(orderList)
+#         serializer = OrderSerializer(order, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
 
     
 
 
 
 
-@api_view(['GET', 'POST'])
-def category_list(request):
-    if request.method == 'GET':
-        category = Category.objects.all()
-        categoryList = []
-        categoryAmountSoldList = []
+# @api_view(['GET', 'POST'])
+# def category_list(request):
+#     if request.method == 'GET':
+#         category = Category.objects.all()
+#         categoryList = []
+#         categoryAmountSoldList = []
         
-        for item in category.iterator():
+#         for item in category.iterator():
 
-            amountQuantity = 0
-            logger.info("CATEGORY UNIT")
-            logger.info(item.name)
-            categoryname = item.name
-            categoryAmountSoldList.append({
-                    "categoryName" : item.name,
-                    "amount" :  0
-                })
+#             amountQuantity = 0
+#             logger.info("CATEGORY UNIT")
+#             logger.info(item.name)
+#             categoryname = item.name
+#             categoryAmountSoldList.append({
+#                     "categoryName" : item.name,
+#                     "amount" :  0
+#                 })
                 
 
-            myorder = Order.objects.all()
-            for orderitems in myorder.iterator():
-                productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
-                for oneproductQuantityRow in productQuantity.iterator():
-                        #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
-                    category = Product.objects.get(id=oneproductQuantityRow.product_id)
+#             myorder = Order.objects.all()
+#             for orderitems in myorder.iterator():
+#                 productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
+#                 for oneproductQuantityRow in productQuantity.iterator():
+#                         #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
+#                     category = Product.objects.get(id=oneproductQuantityRow.product_id)
                     
-                    if(item.id == category.category_id):
-                            amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
+#                     if(item.id == category.category_id):
+#                             amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
                         
                         
-            for itemcategoryAmountSoldList in categoryAmountSoldList:
+#             for itemcategoryAmountSoldList in categoryAmountSoldList:
                     
-                logger.info("itemcategoryAmountSoldList")
-                logger.info(itemcategoryAmountSoldList["categoryName"])
-                if categoryname == itemcategoryAmountSoldList["categoryName"]:
-                    itemcategoryAmountSoldList["amount"]= amountQuantity
+#                 logger.info("itemcategoryAmountSoldList")
+#                 logger.info(itemcategoryAmountSoldList["categoryName"])
+#                 if categoryname == itemcategoryAmountSoldList["categoryName"]:
+#                     itemcategoryAmountSoldList["amount"]= amountQuantity
 
-            logger.info(amountQuantity)
+#             logger.info(amountQuantity)
                 
-            logger.info(categoryAmountSoldList)
+#             logger.info(categoryAmountSoldList)
 
 
 
@@ -561,200 +842,200 @@ def category_list(request):
 
 
 
-            stock = 0
-            aproduct = Product.objects.filter(category_id=item.id)
-            for productItem in aproduct.iterator():
-                logger.info(productItem.stock)
-                stock = stock + productItem.stock 
-                logger.info(stock)
+#             stock = 0
+#             aproduct = Product.objects.filter(category_id=item.id)
+#             for productItem in aproduct.iterator():
+#                 logger.info(productItem.stock)
+#                 stock = stock + productItem.stock 
+#                 logger.info(stock)
 
-            categoryList.append({
-                        "id": item.id,
-                        "name": item.name,
-                        "description": item.description,
-                        "stock": stock,
-                        "amount": amountQuantity
-                    })
+#             categoryList.append({
+#                         "id": item.id,
+#                         "name": item.name,
+#                         "description": item.description,
+#                         "stock": stock,
+#                         "amount": amountQuantity
+#                     })
             
 
-        serializer = CategorySerializer(category, many=True)
-        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': categoryList})
+#         serializer = CategorySerializer(category, many=True)
+#         return JsonResponse(status=200, data={'status':'true','message':'success', 'result': categoryList})
 
-    if request.method == 'POST':
-        serializer = CategorySerializer(data=request.data)
-        if serializer.is_valid():
+#     if request.method == 'POST':
+#         serializer = CategorySerializer(data=request.data)
+#         if serializer.is_valid():
             
-            serializer.save()
-            return JsonResponse(status=status.HTTP_201_CREATED, data={'status':'true','message':'success', 'result': serializer.data})
-        else:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+#             serializer.save()
+#             return JsonResponse(status=status.HTTP_201_CREATED, data={'status':'true','message':'success', 'result': serializer.data})
+#         else:
+#             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
 
         
         
-@api_view(['GET', 'PUT', 'DELETE'])
-def category_details(request, id):
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def category_details(request, id):
 
-    try:
-        category = Category.objects.get(pk=id)
+#     try:
+#         category = Category.objects.get(pk=id)
 
-    except Category.DoesNotExist:
-        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
+#     except Category.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
 
-    if request.method == 'GET':
-        serializer = CategorySerializer(category)
-        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+#     if request.method == 'GET':
+#         serializer = CategorySerializer(category)
+#         return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
 
-    elif request.method == 'PUT':
-        serializer = CategorySerializer(category, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
-        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+#     elif request.method == 'PUT':
+#         serializer = CategorySerializer(category, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
     
-    elif request.method == 'DELETE':
-        category.delete()
-        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
+#     elif request.method == 'DELETE':
+#         category.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
     
 
-@api_view(['GET'])
-def customer_categories(request, customerId):
-    if request.method == 'GET':
-        category = Category.objects.filter(userid=customerId)
-        categoryList = []
-        categoryAmountSoldList = []
+# @api_view(['GET'])
+# def customer_categories(request, customerId):
+#     if request.method == 'GET':
+#         category = Category.objects.filter(userid=customerId)
+#         categoryList = []
+#         categoryAmountSoldList = []
         
-        for item in category.iterator():
+#         for item in category.iterator():
 
-            amountQuantity = 0
-            logger.info("CATEGORY UNIT")
-            logger.info(item.name)
-            categoryname = item.name
-            categoryAmountSoldList.append({
-                    "categoryName" : item.name,
-                    "amount" :  0
-                })
+#             amountQuantity = 0
+#             logger.info("CATEGORY UNIT")
+#             logger.info(item.name)
+#             categoryname = item.name
+#             categoryAmountSoldList.append({
+#                     "categoryName" : item.name,
+#                     "amount" :  0
+#                 })
                 
 
-            myorder = Order.objects.all()
-            for orderitems in myorder.iterator():
-                productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
-                for oneproductQuantityRow in productQuantity.iterator():
-                        #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
-                    category = Product.objects.get(id=oneproductQuantityRow.product_id)
+#             myorder = Order.objects.all()
+#             for orderitems in myorder.iterator():
+#                 productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
+#                 for oneproductQuantityRow in productQuantity.iterator():
+#                         #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
+#                     category = Product.objects.get(id=oneproductQuantityRow.product_id)
                     
-                    if(item.id == category.category_id):
-                            amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
+#                     if(item.id == category.category_id):
+#                             amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
                         
                         
-            for itemcategoryAmountSoldList in categoryAmountSoldList:
+#             for itemcategoryAmountSoldList in categoryAmountSoldList:
                     
-                logger.info("itemcategoryAmountSoldList")
-                logger.info(itemcategoryAmountSoldList["categoryName"])
-                if categoryname == itemcategoryAmountSoldList["categoryName"]:
-                    itemcategoryAmountSoldList["amount"]= amountQuantity
+#                 logger.info("itemcategoryAmountSoldList")
+#                 logger.info(itemcategoryAmountSoldList["categoryName"])
+#                 if categoryname == itemcategoryAmountSoldList["categoryName"]:
+#                     itemcategoryAmountSoldList["amount"]= amountQuantity
 
-            logger.info(amountQuantity)
-            logger.info(categoryAmountSoldList)
-            stock = 0
-            aproduct = Product.objects.filter(category_id=item.id)
-            for productItem in aproduct.iterator():
-                logger.info(productItem.stock)
-                stock = stock + productItem.stock 
-                logger.info(stock)
+#             logger.info(amountQuantity)
+#             logger.info(categoryAmountSoldList)
+#             stock = 0
+#             aproduct = Product.objects.filter(category_id=item.id)
+#             for productItem in aproduct.iterator():
+#                 logger.info(productItem.stock)
+#                 stock = stock + productItem.stock 
+#                 logger.info(stock)
 
-            categoryList.append({
-                        "id": item.id,
-                        "name": item.name,
-                        "description": item.description,
-                        "stock": stock,
-                        "amount": amountQuantity
-                    })
+#             categoryList.append({
+#                         "id": item.id,
+#                         "name": item.name,
+#                         "description": item.description,
+#                         "stock": stock,
+#                         "amount": amountQuantity
+#                     })
             
 
-        serializer = CategorySerializer(category, many=True)
-        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': categoryList})
+#         serializer = CategorySerializer(category, many=True)
+#         return JsonResponse(status=200, data={'status':'true','message':'success', 'result': categoryList})
 
 
 
 
-# API FOR COUNTS
+# # API FOR COUNTS
 
-@api_view(['GET'])
-def orderCounts(request):
-  order_count = Order.objects.all().count()
-  total = Order.objects.all().aggregate(TOTAL = Sum('total_price'))['TOTAL']
+# @api_view(['GET'])
+# def orderCounts(request):
+#   order_count = Order.objects.all().count()
+#   total = Order.objects.all().aggregate(TOTAL = Sum('total_price'))['TOTAL']
   
-  order = Order.objects.all()
-  price = 0
-  amountSold = 0
-  for item in order.iterator():    
-    productsOrders = ProductQuantity.objects.filter(order_id=item.id)
-    for productsOrdersItem in productsOrders.iterator():
-        aProduct = Product.objects.get(id=productsOrdersItem.product_id)
-        price = price + (aProduct.price * productsOrdersItem.product_quantity)               
+#   order = Order.objects.all()
+#   price = 0
+#   amountSold = 0
+#   for item in order.iterator():    
+#     productsOrders = ProductQuantity.objects.filter(order_id=item.id)
+#     for productsOrdersItem in productsOrders.iterator():
+#         aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+#         price = price + (aProduct.price * productsOrdersItem.product_quantity)               
        
  
-  orderMonthList = []
-  for x in range(1, 13):
-    count = Order.objects.filter(created_date__month__exact=x).count()
-    orderMonthList.append(
-                    count
-      )
+#   orderMonthList = []
+#   for x in range(1, 13):
+#     count = Order.objects.filter(created_date__month__exact=x).count()
+#     orderMonthList.append(
+#                     count
+#       )
 
-  from django.utils import timezone
-  totalpreviousyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year - 1).aggregate(TOTAL = Sum('total_price'))['TOTAL']
-  totalcurrentyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year).aggregate(TOTAL = Sum('total_price'))['TOTAL']
+#   from django.utils import timezone
+#   totalpreviousyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year - 1).aggregate(TOTAL = Sum('total_price'))['TOTAL']
+#   totalcurrentyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year).aggregate(TOTAL = Sum('total_price'))['TOTAL']
 
-  try:
-    percentagePrevious = round(((totalcurrentyearPrice - totalpreviousyearPrice) / 100)*100)
-  except:
-    #print("Some variable is None")
-    percentagePrevious = 0
-
-
+#   try:
+#     percentagePrevious = round(((totalcurrentyearPrice - totalpreviousyearPrice) / 100)*100)
+#   except:
+#     #print("Some variable is None")
+#     percentagePrevious = 0
 
 
 
 
-   # CATEGORY STOCK SOLD
-  logger.info("  ")
-  logger.info("ORDER UNIT")
-  categoryAmountSoldList = []
 
-  categories = Category.objects.all()
-  for categoryItem in categories.iterator():
 
-    amountQuantity = 0
-    logger.info("CATEGORY UNIT")
-    logger.info(categoryItem.name)
-    categoryname = categoryItem.name
-    categoryAmountSoldList.append({
-            "categoryName" : categoryItem.name,
-            "amount" :  0
-        })
+#    # CATEGORY STOCK SOLD
+#   logger.info("  ")
+#   logger.info("ORDER UNIT")
+#   categoryAmountSoldList = []
+
+#   categories = Category.objects.all()
+#   for categoryItem in categories.iterator():
+
+#     amountQuantity = 0
+#     logger.info("CATEGORY UNIT")
+#     logger.info(categoryItem.name)
+#     categoryname = categoryItem.name
+#     categoryAmountSoldList.append({
+#             "categoryName" : categoryItem.name,
+#             "amount" :  0
+#         })
         
 
-    myorder = Order.objects.all()
-    for orderitems in myorder.iterator():
-        productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
-        for oneproductQuantityRow in productQuantity.iterator():
-                #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
-            category = Product.objects.get(id=oneproductQuantityRow.product_id)
+#     myorder = Order.objects.all()
+#     for orderitems in myorder.iterator():
+#         productQuantity = ProductQuantity.objects.filter(order_id=orderitems.id)
+#         for oneproductQuantityRow in productQuantity.iterator():
+#                 #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
+#             category = Product.objects.get(id=oneproductQuantityRow.product_id)
             
-            if(categoryItem.id == category.category_id):
-                    amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
+#             if(categoryItem.id == category.category_id):
+#                     amountQuantity = amountQuantity + oneproductQuantityRow.product_quantity
                 
                 
-        for itemcategoryAmountSoldList in categoryAmountSoldList:
+#         for itemcategoryAmountSoldList in categoryAmountSoldList:
                 
-            logger.info("itemcategoryAmountSoldList")
-            logger.info(itemcategoryAmountSoldList["categoryName"])
-            if categoryname == itemcategoryAmountSoldList["categoryName"]:
-                itemcategoryAmountSoldList["amount"]= amountQuantity
+#             logger.info("itemcategoryAmountSoldList")
+#             logger.info(itemcategoryAmountSoldList["categoryName"])
+#             if categoryname == itemcategoryAmountSoldList["categoryName"]:
+#                 itemcategoryAmountSoldList["amount"]= amountQuantity
 
-        logger.info(amountQuantity)
+#         logger.info(amountQuantity)
             
-        logger.info(categoryAmountSoldList)
+#         logger.info(categoryAmountSoldList)
 
 
         
@@ -762,249 +1043,138 @@ def orderCounts(request):
 
     
 
-  result= {'ordercount': order_count, 
-            "total": price, 
-            'monthlyOrders': orderMonthList, 
-            'percentageIncrement': percentagePrevious,
-            'categoryStockSold': categoryAmountSoldList
-            }
-  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+#   result= {'ordercount': order_count, 
+#             "total": price, 
+#             'monthlyOrders': orderMonthList, 
+#             'percentageIncrement': percentagePrevious,
+#             'categoryStockSold': categoryAmountSoldList
+#             }
+#   return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
 
 
 
-@api_view(['GET'])
-def buyerCounts(request):
-  buyer_count = Buyer.objects.all().count()
-  result= {'buyercount': buyer_count}
-  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+# @api_view(['GET'])
+# def buyerCounts(request):
+#   buyer_count = Buyer.objects.all().count()
+#   result= {'buyercount': buyer_count}
+#   return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
 
 
-@api_view(['GET'])
-def supplierCounts(request):
-  supplier_count = Supplier.objects.all().count()
-  result= {'suppliercount': supplier_count}
-  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+# @api_view(['GET'])
+# def supplierCounts(request):
+#   supplier_count = Supplier.objects.all().count()
+#   result= {'suppliercount': supplier_count}
+#   return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
 
 
-@api_view(['GET'])
-def productCounts(request):
-  product_count = Product.objects.all().count()
-  result= {'productcount': product_count}
-  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+# @api_view(['GET'])
+# def productCounts(request):
+#   product_count = Product.objects.all().count()
+#   result= {'productcount': product_count}
+#   return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
 
 
-@api_view(['GET'])
-def deliveryCounts(request):
-  delivery_count = Delivery.objects.all().count()
-  deliveries= {'deliverycount': delivery_count}
-  return JsonResponse(deliveries)
+# @api_view(['GET'])
+# def deliveryCounts(request):
+#   delivery_count = Delivery.objects.all().count()
+#   deliveries= {'deliverycount': delivery_count}
+#   return JsonResponse(deliveries)
 
 
-# create api for the TOTAL amount for orders, product prices and product stock
+# # create api for the TOTAL amount for orders, product prices and product stock
 
-@api_view(['GET'])
-def total_orders(request):
-    total = Order.objects.all().aggregate(TOTAL = Sum('total_price'))['TOTAL']
-    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+# @api_view(['GET'])
+# def total_orders(request):
+#     total = Order.objects.all().aggregate(TOTAL = Sum('total_price'))['TOTAL']
+#     return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
 
-@api_view(['GET'])
-def total_stock(request):
-    total = Product.objects.all().aggregate(TOTAL = Sum('stock'))['TOTAL']
-    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+# @api_view(['GET'])
+# def total_stock(request):
+#     total = Product.objects.all().aggregate(TOTAL = Sum('stock'))['TOTAL']
+#     return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
 
-@api_view(['GET'])
-def total_price(request):
-    total = Product.objects.all().aggregate(TOTAL = Sum('price'))['TOTAL']
-    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+# @api_view(['GET'])
+# def total_price(request):
+#     total = Product.objects.all().aggregate(TOTAL = Sum('price'))['TOTAL']
+#     return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
     
 
 
 
-# Supplier views
-
-@login_required(login_url='login')
-def create_supplier(request):
-    forms = SupplierForm()
-    if request.method == 'POST':
-        forms = SupplierForm(request.POST)
-        if forms.is_valid():
-            name = forms.cleaned_data['name']
-            address = forms.cleaned_data['address']
-            email = forms.cleaned_data['email']
-            username = forms.cleaned_data['username']
-            password = forms.cleaned_data['password']
-            retype_password = forms.cleaned_data['retype_password']
-            if password == retype_password:
-                user = User.objects.create_user(
-                    username=username, password=password,
-                    email=email, is_supplier=True
-                )
-                Supplier.objects.create(user=user, name=name, address=address)
-                return redirect('supplier-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_supplier.html', context)
 
 
-class SupplierListView(ListView):
-    model = Supplier
-    template_name = 'store/supplier_list.html'
-    context_object_name = 'supplier'
+
+# @api_view(['GET', 'POST'])
+# def admin_list(request):
+#     if request.method == 'GET':
+#         customers = CustomUser.objects.filter(is_admin=True)
+#         serializer = UserSerializer(customers, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
 
 
-# Buyer views
-@login_required(login_url='login')
-def create_buyer(request):
-    forms = BuyerForm()
-    if request.method == 'POST':
-        forms = BuyerForm(request.POST)
-        if forms.is_valid():
-            name = forms.cleaned_data['name']
-            address = forms.cleaned_data['address']
-            email = forms.cleaned_data['email']
-            username = forms.cleaned_data['username']
-            password = forms.cleaned_data['password']
-            retype_password = forms.cleaned_data['retype_password']
-            if password == retype_password:
-                user = User.objects.create_user(
-                    username=username, password=password,
-                    email=email, is_buyer=True
-                )
-                Buyer.objects.create(user=user, name=name, address=address)
-                return redirect('buyer-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_buyer.html', context)
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def admin_details(request, id):
+#     try:
+#         customer = CustomUser.objects.filter(is_admin=True).get(pk=id)
+
+#     except CustomUser.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
+
+#     if request.method == 'GET':
+#         serializer = UserSerializer(customer)
+#         return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = UserSerializer(customer, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+    
+#     elif request.method == 'DELETE':
+#         customer.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
+    
 
 
-class BuyerListView(ListView):
-    model = Buyer
-    template_name = 'store/buyer_list.html'
-    context_object_name = 'buyer'
 
 
-# Season views
-@login_required(login_url='login')
-def create_season(request):
-    forms = SeasonForm()
-    if request.method == 'POST':
-        forms = SeasonForm(request.POST)
-        if forms.is_valid():
-            forms.save()
-            return redirect('season-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_season.html', context)
+
+# @api_view(['GET', 'POST'])
+# def customer_list(request):
+#     if request.method == 'GET':
+#         customers = CustomUser.objects.filter(is_customer=True)
+#         serializer = UserSerializer(customers, many=True)
+#         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
 
 
-class SeasonListView(ListView):
-    model = Season
-    template_name = 'store/season_list.html'
-    context_object_name = 'season'
+
+# @api_view(['GET', 'PUT', 'DELETE'])
+# def customer_details(request, id):
+
+#     try:
+#         customer = CustomUser.objects.filter(is_customer=True).get(pk=id)
+
+#     except CustomUser.DoesNotExist:
+#         return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message':'Request not found'})
+
+#     if request.method == 'GET':
+#         serializer = UserSerializer(customer)
+#         return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+
+#     elif request.method == 'PUT':
+#         serializer = UserSerializer(customer, data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return JsonResponse(status=200, data={'status':'true','message':'success', 'result': serializer.data})
+#         return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status':'false','message':'Bad Request'})
+    
+#     elif request.method == 'DELETE':
+#         customer.delete()
+#         return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})  
+    
 
 
-# Drop views
-@login_required(login_url='login')
-def create_drop(request):
-    forms = DropForm()
-    if request.method == 'POST':
-        forms = DropForm(request.POST)
-        if forms.is_valid():
-            forms.save()
-            return redirect('drop-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_drop.html', context)
 
 
-class DropListView(ListView):
-    model = Drop
-    template_name = 'store/drop_list.html'
-    context_object_name = 'drop'
 
-
-# Product views
-@login_required(login_url='login')
-def create_product(request):
-    forms = ProductForm()
-    if request.method == 'POST':
-        forms = ProductForm(request.POST)
-        if forms.is_valid():
-            forms.save()
-            return redirect('product-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_product.html', context)
-
-
-class ProductListView(ListView):
-    model = Product
-    template_name = 'store/product_list.html'
-    context_object_name = 'product'
-
-
-# Order views
-@login_required(login_url='login')
-def create_order(request):
-    forms = OrderForm()
-    if request.method == 'POST':
-        forms = OrderForm(request.POST)
-        if forms.is_valid():
-            supplier = forms.cleaned_data['supplier']
-            product = forms.cleaned_data['product']
-            design = forms.cleaned_data['design']
-            color = forms.cleaned_data['color']
-            buyer = forms.cleaned_data['buyer']
-            season = forms.cleaned_data['season']
-            drop = forms.cleaned_data['drop']
-            Order.objects.create(
-                supplier=supplier,
-                product=product,
-                design=design,
-                color=color,
-                buyer=buyer,
-                season=season,
-                drop=drop,
-                status='pending'
-            )
-            return redirect('order-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_order.html', context)
-
-
-class OrderListView(ListView):
-    model = Order
-    template_name = 'store/order_list.html'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['order'] = Order.objects.all().order_by('-id')
-        return context
-
-
-# Delivery views
-@login_required(login_url='login')
-def create_delivery(request):
-    forms = DeliveryForm()
-    if request.method == 'POST':
-        forms = DeliveryForm(request.POST)
-        if forms.is_valid():
-            forms.save()
-            return redirect('delivery-list')
-    context = {
-        'form': forms
-    }
-    return render(request, 'store/create_delivery.html', context)
-
-
-class DeliveryListView(ListView):
-    model = Delivery
-    template_name = 'store/delivery_list.html'
-    context_object_name = 'delivery'
