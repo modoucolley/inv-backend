@@ -7,5 +7,6 @@ class StoreConfig(AppConfig):
     name = 'store'
 
     def ready(self):
-    	updater.start()
+    	#updater.start()
+        pass
 

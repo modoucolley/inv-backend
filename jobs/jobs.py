@@ -58,8 +58,8 @@ def create_pdffile():
 
 from twilio.rest import Client
 
-account_sid = 'ACa3061a8c10d45fe7dad1c698fad82ff3'
-authToken = '9587c5e7b8dcd9d5448203fa302b591d'
+#account_sid = '111'
+#authToken = '11'
 client = Client(account_sid, authToken)
 
 def send_message():
