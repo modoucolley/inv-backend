@@ -28,9 +28,7 @@ parser_classes = [MultiPartParser, FormParser]
 from twilio.rest import Client
 from django.views.decorators.csrf import csrf_exempt
 
-account_sid = 'ACa3061a8c10d45fe7dad1c698fad82ff3'
-authToken = '9587c5e7b8dcd9d5448203fa302b591d'
-client = Client(account_sid, authToken)
+
 
 @csrf_exempt
 def twilio(request):

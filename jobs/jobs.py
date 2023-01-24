@@ -58,7 +58,9 @@ def create_pdffile():
 
 from twilio.rest import Client
 
-
+account_sid = 'ACa3061a8c10d45fe7dad1c698fad82ff3'
+authToken = '0047f50788bfa351980881e599db8663'
+client = Client(account_sid, authToken)
 
 def send_message():
 
@@ -68,7 +70,7 @@ def send_message():
         from_='whatsapp:+14155238886',
         body= "Hi",
         #media_url='https://www.aims.ca/site/media/aims/2.pdf',
-        media_url='https://cda6-41-223-213-220.eu.ngrok.io/static/documents/DailyReport.pdf',
+        #media_url='https://cda6-41-223-213-220.eu.ngrok.io/static/documents/DailyReport.pdf',
         to='whatsapp:+2207677435',
         #to='whatsapp:+2203258685',
         #to='whatsapp:+2205260188',
