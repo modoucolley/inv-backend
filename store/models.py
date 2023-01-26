@@ -13,8 +13,8 @@ class Product(models.Model):
         ('out_of_stock', 'Out of Stock'),
     )
     name = models.CharField(max_length=120, unique=True)
-    label = models.CharField(max_length=120, default='')
-    tags = models.CharField(max_length=120, default='')
+    description_color = models.CharField(max_length=120, default='')
+    label_size = models.CharField(max_length=120, default='')
     price = models.DecimalField(max_digits=6, decimal_places=2)
     stock = models.PositiveIntegerField(default='')
     sku = models.CharField(max_length=120, default='')

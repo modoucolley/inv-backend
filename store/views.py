@@ -28,7 +28,9 @@ parser_classes = [MultiPartParser, FormParser]
 from twilio.rest import Client
 from django.views.decorators.csrf import csrf_exempt
 
-
+account_sid = 'ACa3061a8c10d45fe7dad1c698fad82ff3'
+authToken = '0047f50788bfa351980881e599db8663'
+client = Client(account_sid, authToken)
 
 @csrf_exempt
 def twilio(request):
@@ -159,7 +161,7 @@ def order_list(request):
                 productList.append( {
                         "id": aProduct.id,
                         "name": aProduct.name,
-                        "label": aProduct.label,
+                        "description_color": aProduct.description_color,
                         "price": aProduct.price,
                         "quantity": productsOrdersItem.quantity,
                         "amount": aProduct.price * productsOrdersItem.quantity
