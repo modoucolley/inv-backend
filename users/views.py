@@ -4,12 +4,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import CustomUserSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from django.contrib.auth import authenticate
+from .models import CustomUser
+from rest_framework.parsers import MultiPartParser, FormParser
+
 
 import logging
 logger = logging.getLogger('app_api')
+
+
+
 
 class RegisterUser(APIView):
     permission_classes = [AllowAny]
@@ -22,7 +28,6 @@ class RegisterUser(APIView):
                 json = serializer.data
                 return Response(json, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 
 class LoginUser(APIView):
@@ -56,6 +61,24 @@ class LoginUser(APIView):
         }
         return Response(data=content, status=status.HTTP_200_OK)
 
+
+from rest_framework import generics, mixins, viewsets, filters, permissions
+from django.shortcuts import render, redirect, get_object_or_404
+
+
+class UserRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CustomUserSerializer
+    queryset = CustomUser.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return CustomUser.objects.filter(id=user.id)
+
+    def get_object(self, queryset=None, **kwargs):
+        item = self.kwargs.get('pk')
+        user = self.request.user
+        return get_object_or_404(CustomUser, email=item)
 
 
 class BlacklistTokenUpdateView(APIView):

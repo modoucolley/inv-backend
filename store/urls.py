@@ -7,6 +7,17 @@ from .views import (
     CategoryRetreiveUpdateDeleteView,
     order_list,
     order_details,
+    invoice_list,
+    invoice_details,
+    
+    productCounts,
+    buyerCounts, 
+    deliveryCounts, 
+    supplierCounts,
+    orderCounts, 
+    total_orders,
+    total_stock, 
+    total_price,
     
     # invoice_details,
     # invoice_list, customer_invoices,
@@ -31,6 +42,23 @@ urlpatterns = [
     path('categories/<int:pk>/', CategoryRetreiveUpdateDeleteView.as_view(), name='detailupdatedeletecategories'),
     path('orders/', order_list),
     path('orders/<int:id>', order_details),
+    path('invoices/', invoice_list),
+    path('invoices/<int:id>', invoice_details),
+
+    path('ordercount/', orderCounts),
+    path('buyercount/', buyerCounts),
+    path('suppliercount/', supplierCounts),
+    path('productcount/', productCounts),
+    path('deliverycount/', deliveryCounts),
+
+    path('totalstock/', total_stock),
+    path('totalprice/', total_price),
+
+
+
+
+
+
 
 
     # path('products/', product_list),

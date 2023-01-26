@@ -243,6 +243,227 @@ def order_details(request, id):
 
 
 
+### LIST ALL CUSTOMER INVOICES / CREATE A CUSTOMER INVOICE
+
+@api_view(['GET', 'POST'])
+def invoice_list(request):
+    if request.method == 'GET':
+        user = request.user
+        order = Order.objects.filter(owner=user).exclude(type="order")
+        orderList = []
+        for item in order.iterator():
+            productList = []
+            price = 0
+            productsOrders = OrderProducts.objects.filter(order_id=item.id)
+
+            for productsOrdersItem in productsOrders.iterator():
+                aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+                productList.append( {
+                        "id": aProduct.id,
+                        "name": aProduct.name,
+                        "description_color": aProduct.description_color,
+                        "price": aProduct.price,
+                        "quantity": productsOrdersItem.quantity,
+                        "amount": aProduct.price * productsOrdersItem.quantity
+                    })
+                price = price + (aProduct.price * productsOrdersItem.quantity)
+
+            orderList.append(
+                    {
+                        "id": item.id,
+                        "buyer": item.buyer,
+                        "products": productList,
+                        "status": item.status,
+                        "receipt":  item.receipt,
+                        "type":item.type,
+                        "total_price":  price,
+                    },
+                )
+        serializer = OrderSerializer(order, many=True)
+        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
+
+    if request.method == 'POST':
+        serializer = OrderSerializer(data=request.data)
+        data = request.data
+        user = request.user
+        new_order = Order.objects.create(owner = user, buyer = data["buyer"], status = data["status"], receipt = data["receipt"], type = data["type"], total_price = data["total_price"]  )
+        new_order.save()
+
+        for product in data['products']:    
+            new_product_order = OrderProducts.objects.create(product_id = product['id'],  order_id = new_order.id, quantity = product['amount'])
+            new_product_order.save()
+
+            try:
+                aproduct = Product.objects.get(pk=product['id'])
+                aproduct.stock = aproduct.stock - product['amount']
+                if(aproduct.stock - product['amount'] < 0):
+                    new_order.delete()
+                    return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message':  'One of the Product Is Out Of Stock', 'result': []})
+                else:
+                    aproduct.save()
+            except Product.DoesNotExist:
+                return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'status': 'false', 'message': 'Product Does Not Exist', 'result': []})
+
+        if serializer.is_valid():
+            return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+        else:
+            return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
+
+
+
+### LIST A SINGLE CUSTOMER ORDERS DETAIL / UPDATE / DELETE
+
+@api_view(['GET', 'PUT', 'DELETE'])
+def invoice_details(request, id):
+
+    try:
+        user = request.user
+        order = Order.objects.filter(owner=user).get(pk=id)
+
+    except Order.DoesNotExist:
+        return JsonResponse(status=status.HTTP_404_NOT_FOUND,  data={'message': 'Request not found'})
+
+    if request.method == 'GET':
+        serializer = OrderSerializer(order)
+        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+
+    elif request.method == 'PUT':
+        serializer = OrderSerializer(order, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': serializer.data})
+        return JsonResponse(serializer.errors, status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request'})
+
+    elif request.method == 'DELETE':
+        order.delete()
+        return JsonResponse(status=status.HTTP_200_OK, data={'status': 'true', 'message': 'success'})
+
+
+
+
+
+
+## API FOR COUNTS
+
+@api_view(['GET'])
+def orderCounts(request):
+  user = request.user
+  order_count = Order.objects.filter(owner=user).count()
+  total = Order.objects.filter(owner=user).aggregate(TOTAL = Sum('total_price'))['TOTAL']
+  order = Order.objects.filter(owner=user)
+  price = 0
+  amountSold = 0
+  for item in order.iterator():    
+    productsOrders = OrderProducts.objects.filter(order_id=item.id)
+    for productsOrdersItem in productsOrders.iterator():
+        aProduct = Product.objects.get(id=productsOrdersItem.product_id)
+        price = price + (aProduct.price * productsOrdersItem.quantity)               
+       
+ 
+  orderMonthList = []
+  for x in range(1, 13):
+    count = Order.objects.filter(owner=user,created_date__month__exact=x).count()
+    orderMonthList.append(
+                    count
+      )
+
+  from django.utils import timezone
+  totalpreviousyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year - 1).aggregate(TOTAL = Sum('total_price'))['TOTAL']
+  totalcurrentyearPrice = Order.objects.filter(created_date__year__exact=timezone.now().year).aggregate(TOTAL = Sum('total_price'))['TOTAL']
+
+  try:
+    percentagePrevious = round(((totalcurrentyearPrice - totalpreviousyearPrice) / 100)*100)
+  except:
+    percentagePrevious = 0
+
+   # CATEGORY STOCK SOLD
+  
+  categoryAmountSoldList = []
+
+  categories = Category.objects.filter(owner=user)
+  for categoryItem in categories.iterator():
+
+    amountQuantity = 0
+    categoryname = categoryItem.name
+    categoryAmountSoldList.append({
+            "categoryName" : categoryItem.name,
+            "amount" :  0
+        })
+        
+
+    myorder = Order.objects.all(owner=user)
+    for orderitems in myorder.iterator():
+        productQuantity = OrderProducts.objects.filter(order_id=orderitems.id)
+        for oneproductQuantityRow in productQuantity.iterator():
+                #GET THE CATEGORY ID OF THE CURRENT PRODUCT FROM THE PRODUCT ID IN THE PRODUCT QUANTITY TABLE
+            category = Product.objects.get(id=oneproductQuantityRow.product_id)
+            
+            if(categoryItem.id == category.category_id):
+                    amountQuantity = amountQuantity + oneproductQuantityRow.quantity
+                
+                
+        for itemcategoryAmountSoldList in categoryAmountSoldList:
+            if categoryname == itemcategoryAmountSoldList["categoryName"]:
+                itemcategoryAmountSoldList["amount"]= amountQuantity
+
+  result= {'ordercount': order_count, 
+            "total": price, 
+            'monthlyOrders': orderMonthList, 
+            'percentageIncrement': percentagePrevious,
+            'categoryStockSold': categoryAmountSoldList
+            }
+  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+
+
+
+
+@api_view(['GET'])
+def productCounts(request):
+  user = request.user
+  product_count = Product.objects.filter(owner=user).count()
+  result= {'productcount': product_count}
+  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+
+
+
+@api_view(['GET'])
+def buyerCounts(request):
+  buyer_count = Buyer.objects.all().count()
+  result= {'buyercount': buyer_count}
+  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+
+
+@api_view(['GET'])
+def supplierCounts(request):
+  supplier_count = Supplier.objects.all().count()
+  result= {'suppliercount': supplier_count}
+  return JsonResponse(status=200, data={'status':'true','message':'success', 'result': result})
+
+
+@api_view(['GET'])
+def deliveryCounts(request):
+  delivery_count = Delivery.objects.all().count()
+  deliveries= {'deliverycount': delivery_count}
+  return JsonResponse(deliveries)
+
+
+@api_view(['GET'])
+def total_orders(request):
+    total = Order.objects.all().aggregate(TOTAL = Sum('total_price'))['TOTAL']
+    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+
+@api_view(['GET'])
+def total_stock(request):
+    total = Product.objects.all().aggregate(TOTAL = Sum('stock'))['TOTAL']
+    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+
+@api_view(['GET'])
+def total_price(request):
+    total = Product.objects.all().aggregate(TOTAL = Sum('price'))['TOTAL']
+    return JsonResponse(status=200, data={'status':'true','message':'success', 'result': total})
+    
+
 
 
 

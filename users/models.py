@@ -25,12 +25,15 @@ from django.utils import timezone
 #     REQUIRED_FIELDS = ['username']
 
 
+def upload_to(instance, filename):
+    return 'profiles/{filename}'.format(filename=filename) 
 
 
 class CustomUser(AbstractUser, PermissionsMixin):
     email = models.EmailField(_('email address'), unique=True)
     first_name = models.CharField(max_length=120, default='')
     last_name = models.CharField(max_length=120, default='')
+    profile = models.ImageField(_('Image'), upload_to= upload_to, default='profiles/default.png')
     company_name = models.CharField(max_length=120, default='')
     start_date = models.DateTimeField(default=timezone.now)
     contact = models.CharField(max_length=120, default='')
@@ -38,6 +41,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
     postcode = models.CharField(max_length=120, default='')
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    
     
  
     USERNAME_FIELD = 'email'

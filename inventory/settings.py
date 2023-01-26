@@ -160,7 +160,8 @@ LOGGING = {
     }
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = "http://localhost:8000/static/"
+#MEDIA_URL = "http://localhost:8000/static/"
+MEDIA_URL = '/media/'
 
 
 AUTH_USER_MODEL = 'users.CustomUser'
