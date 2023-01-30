@@ -101,6 +101,56 @@ class CategoryListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, 
     serializer_class = CategorySerializer
     queryset = Category.objects.all() 
 
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        category = Category.objects.filter(owner=user)
+        categoryList = []
+        categoryAmountSoldList = []
+        
+        for item in category.iterator():
+
+            amountQuantity = 0
+            
+            categoryname = item.name
+            categoryAmountSoldList.append({
+                    "categoryName" : item.name,
+                    "amount" :  0
+                })
+                
+
+            myorder = Order.objects.filter(owner=user)
+            for orderitems in myorder.iterator():
+                productQuantity = OrderProducts.objects.filter(order_id=orderitems.id)
+                for oneproductQuantityRow in productQuantity.iterator():
+                    category = Product.objects.get(id=oneproductQuantityRow.product_id)
+                    
+                    if(item.id == category.category_id):
+                            amountQuantity = amountQuantity + oneproductQuantityRow.quantity
+                        
+                        
+            for itemcategoryAmountSoldList in categoryAmountSoldList:
+                if categoryname == itemcategoryAmountSoldList["categoryName"]:
+                    itemcategoryAmountSoldList["amount"]= amountQuantity
+
+            stock = 0
+            aproduct = Product.objects.filter(category_id=item.id)
+            for productItem in aproduct.iterator():
+                stock = stock + productItem.stock 
+                
+
+            categoryList.append({
+                        "id": item.id,
+                        "name": item.name,
+                        "description": item.description,
+                        "stock": stock,
+                        "amount": amountQuantity
+                    })
+            
+
+        serializer = CategorySerializer(category, many=True)
+        return JsonResponse(status=200, data={'status':'true','message':'success', 'result': categoryList})
+
+
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user) 
 
@@ -122,7 +172,6 @@ class CategoryRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         item = self.kwargs.get('pk')
         user = self.request.user
         return get_object_or_404(Category, id=item, owner=user)
-
 
 
 
