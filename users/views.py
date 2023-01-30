@@ -66,7 +66,7 @@ from rest_framework import generics, mixins, viewsets, filters, permissions
 from django.shortcuts import render, redirect, get_object_or_404
 
 
-class UserRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+class UserRetreiveUpdateView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CustomUserSerializer
     queryset = CustomUser.objects.all()
