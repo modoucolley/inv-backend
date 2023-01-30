@@ -48,7 +48,6 @@ def twilio(request):
 
 
 
-
 ### PRODUCT PERMISSIONS
 
 class ProductPermission(BasePermission):
@@ -392,7 +391,7 @@ def orderCounts(request):
         })
         
 
-    myorder = Order.objects.all(owner=user)
+    myorder = Order.objects.filter(owner=user)
     for orderitems in myorder.iterator():
         productQuantity = OrderProducts.objects.filter(order_id=orderitems.id)
         for oneproductQuantityRow in productQuantity.iterator():
