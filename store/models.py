@@ -53,6 +53,7 @@ class Order(models.Model):
     )
     TYPE_CHOICE = (
         ('invoice', 'Invoice'),
+        ('receipt', 'Receipt'),
         ('order', 'Order'),
     )
     buyer = models.CharField(max_length=50, default='')

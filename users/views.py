@@ -31,6 +31,8 @@ class RegisterUser(APIView):
 
 
 class LoginUser(APIView):
+    permission_classes = [AllowAny]
+    
     def post(self, request:Request):
         email = request.data.get('email')
         password = request.data.get('password')
