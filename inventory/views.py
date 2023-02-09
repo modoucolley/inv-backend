@@ -23,9 +23,6 @@ def dashboard(request):
 
 
 def Welcome(request):
-
     now = datetime.datetime.now() 
-
     msg = f'Welcome to Gomindz Inv Backend. Today is {now}'
-
     return HttpResponse(msg, content_type='text/plain')
