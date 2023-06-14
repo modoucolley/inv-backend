@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Delivery, Product, OrderProducts, Supplier, Buyer, Order, Delivery
+from .models import Product, Category, Damages, Delivery, OrderProducts, Supplier, Buyer, Order, Delivery
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -26,7 +26,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ('id', 'name', 'description_color', 'label_size', 'price', 'sku', 'stock', 'status', 'sortno', 'owner', 'category', 'image')
+        fields = ('id', 'name', 'description_color', 'price', 'stock', 'status', 'owner', 'category', 'image')
 
 
 
@@ -36,13 +36,37 @@ class OrderSerializer(serializers.ModelSerializer):
     )
     class Meta:
         model = Order
-        fields = ('id', 'products', 'buyer', 'type', 'status', 'receipt', 'total_price', 'owner')
+        fields = ('id', 'products', 'buyer', 'buyer_location', 'type', 'status', 'ref', 'total_price', 'owner')
         depth = 1
+
+
 
 class OrderProductsSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderProducts
         fields = ['id', 'product', 'order', 'quantity']
+
+
+
+
+
+class DamagesSerializer(serializers.ModelSerializer):
+
+    product = serializers.SlugRelatedField(
+                read_only=False,
+                slug_field="name",
+                queryset=Product.objects.all()
+                )
+
+    owner = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+    )
+
+    class Meta:
+        model = Damages
+        fields = ('id', 'product', 'category', 'damages', 'owner')
+
+
 
 
 class SupplierSerializer(serializers.ModelSerializer):

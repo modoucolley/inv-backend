@@ -1,36 +1,26 @@
-from django.views.decorators.csrf import csrf_exempt
 from twilio.rest import Client
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.http import HttpResponse
+from django.db import Error
 from django.db.models import Sum
-
-from rest_framework.decorators import api_view, permission_classes
+from django.views.decorators.csrf import csrf_exempt
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework import generics, mixins, viewsets, filters, permissions
-from rest_framework.permissions import SAFE_METHODS, BasePermission, IsAdminUser, DjangoModelPermissionsOrAnonReadOnly, IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.permissions import (
-    IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly, IsAdminUser)
-from rest_framework.request import Request
-from django.http import HttpResponse
+from rest_framework import generics
 
-from users.models import CustomUser
-from .models import (Product, OrderProducts, Supplier,
-                     Buyer, Order, Delivery, Category)
-from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, BuyerSerializer, OrderSerializer, DeliveriesSerializer
+from .models import Product,Category, Damages, OrderProducts, Supplier, Buyer, Order, Delivery
+from .serializers import ProductSerializer, CategorySerializer, DamagesSerializer, OrderSerializer
 
 
+# FORM DATA FOR PRODUCT IMAGE
 parser_classes = [MultiPartParser, FormParser]
 
-
 # TWILIO
-
-
-account_sid = ''
-authToken = ''
+account_sid = '12334'
+authToken = '14456'
 client = Client(account_sid, authToken)
 
 
@@ -45,75 +35,487 @@ def twilio(request):
         to='whatsapp:+2207677435',
     )
     print(request.POST)
-
     return HttpResponse("Hello")
 
 
-# PRODUCT PERMISSIONS
-
-class ProductPermission(BasePermission):
-    message = 'Editing Products is Restricted to The owner only'
-
-    def has_object_permission(self, request, view, obj):
-
-        if request.method in SAFE_METHODS:
-            return True
-
-        return obj.owner == request.user
 
 
-# LIST ALL CUSTOMER PRODUCTS / CREATE A PRODUCT
-
-class ProductListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
+# LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
+class CategoryListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    serializer_class = CategorySerializer
+    queryset = Category.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        queryset = Category.objects.filter(owner=user)
+        serializer = self.get_serializer(queryset, many=True)
+        response = {
+                    "status": True,
+                    "message": "",
+                    "categories" : serializer.data
+
+                }
+        return Response(response)
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        response = {
+            "status": True,
+            "message": "Category Successfully Added",
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+
+# LIST DETAIL OF ONE CATEGORY / UPDATE / DELETE
+class CategoryRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CategorySerializer
+    queryset = Category.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response = {
+            "status": True,
+            "message": "",
+            "category": serializer.data
+
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
+
+
+
+
+
+
+
+
+
+
+# LIST ALL CUSTOMER PRODUCTS / CREATE A PRODUCT
+class ProductListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProductSerializer
+    queryset = Product.objects.all()
 
     def get_queryset(self):
         user = self.request.user
         return Product.objects.filter(owner=user)
 
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        queryset = Product.objects.filter(owner=user)
+        serializer = self.get_serializer(queryset, many=True)
+        response = {
+                    "status": True,
+                    "message": "",
+                    "products" : serializer.data
+
+                }
+        return Response(response)
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        response = {
+            "status": True,
+            "message": "Product Successfully Added",
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    
 
 # LIST DETAIL OF ONE PRODUCT / UPDATE / DELETE
-
 class ProductRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProductSerializer
     queryset = Product.objects.all()
 
-    def get_object(self, queryset=None, **kwargs):
-        item = self.kwargs.get('pk')
+    def get_queryset(self):
         user = self.request.user
-        return get_object_or_404(Product, id=item, owner=user)
+        return Product.objects.filter(owner=user)
+
+        
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response = {
+            "status": True,
+            "message": "",
+            "product": serializer.data
+
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
 
 
-# LIST ALL CUSTOMER PRODUCTS CATEGORIES / CREATE A PRODUCT CATEGORY
 
-class CategoryListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
+
+
+
+
+
+
+
+# LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
+class DamagesListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = CategorySerializer
-    queryset = Category.objects.all()
+    serializer_class = DamagesSerializer
+    queryset = Damages.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Damages.objects.filter(owner=user)
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
+        queryset = Damages.objects.filter(owner=user)
+        serializer = self.get_serializer(queryset, many=True)
+        response = {
+                    "status": True,
+                    "message": "",
+                    "damages" : serializer.data
+
+                }
+        return Response(response)
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = request.data
+        
+
+        try:
+            iproduct = Product.objects.get(name=data['product'])
+            if (iproduct.stock - int(data['damages']) < 0):
+                response = {
+                            "status": True,
+                            "message": "Damages is more than Of Stock Error",
+                        }                
+                return Response(data=response, status=status.HTTP_406_NOT_ACCEPTABLE)
+            else:
+                serializer = ProductSerializer(iproduct, data = {'stock': iproduct.stock - int(data['damages'])}, partial=True)
+
+                damages = Damages.objects.create(owner=request.user, product=iproduct, category=data["category"], damages=data["damages"])
+                damages.save()
+
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                    "status": True,
+                    "message": "Damages Successfully Added",
+                            }                
+                    return Response(data=response, status=status.HTTP_201_CREATED)
+
+                        
+        except Product.DoesNotExist:
+            response = {
+                    "status": True,
+                    "message": "Product Does Not Existr"
+                    }                
+            return Response(data=response, status=status.HTTP_404_NOT_FOUND)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+
+
+
+
+
+
+
+# LIST ALL CUSTOMER ORDERS [INVOICE/RECEIPT] / CREATE A CUSTOMER ORDER
+class OrderListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    queryset = Order.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Order.objects.filter(owner=user)
+
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        type = self.request.query_params.get('type')
+        
+        if(type == None):
+            queryset = Order.objects.filter(owner=user)
+        else:
+            queryset = Order.objects.filter(owner=user).filter(type=type)
+
+        orderList = []
+        for item in queryset.iterator():
+            productList = []
+            price = 0
+            productOrders = OrderProducts.objects.filter(order_id=item.id)
+
+            for productsOrdersItem in productOrders.iterator():
+                iProduct = Product.objects.get(id=productsOrdersItem.product_id)
+                productList.append({
+                    "id": iProduct.id,
+                    "name": iProduct.name,
+                    "description_color": iProduct.description_color,
+                    "price": iProduct.price,
+                    "quantity": productsOrdersItem.quantity,
+                    "amount": iProduct.price * productsOrdersItem.quantity
+                })
+                price = price + (iProduct.price * productsOrdersItem.quantity)
+
+            orderList.append(
+                {
+                    "id": item.id,
+                    "buyer": item.buyer,
+                    "buyer_location": item.buyer_location,
+                    "products": productList,
+                    "status": item.status,
+                    "receipt":  item.ref,
+                    "type": item.type,
+                    "total_price":  price,
+                },
+            )
+
+
+        response = {
+                    "status": True,
+                    "message": "",
+                    "orders" : orderList
+                }
+        return Response(response)
+
+
+        
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = request.data
+        type = self.request.query_params.get('type')
+        order = Order.objects.create(owner=request.user, buyer=data["buyer"],buyer_location=data["buyer_location"] ,status=data["status"], ref=data["ref"], type=data["type"], total_price=data["total_price"])
+        order.save()
+
+        try:
+            for product in data['products']:
+                iproductstock = Product.objects.get(pk=product['id']).stock
+                
+                print("dddd")
+                print(type)
+
+
+                if (iproductstock - product['amount'] < 0):
+                    order.delete()
+                    response = {
+                                "status": True,
+                                "message": "Product Is Out Of Stock Error",
+                            }                
+                    return Response(data=response, status=status.HTTP_404_NOT_FOUND)
+
+                orderProduct = OrderProducts.objects.create(product_id=product['id'],  order_id=order.id, quantity=product['amount'])
+
+                print("dddd")
+                print(type)
+
+                if(type == 'receipt'):
+                    theproduct = Product.objects.get(pk=product['id'])
+                    theproduct.stock = theproduct.stock - product['amount']
+                    theproduct.save()
+
+                orderProduct.save()
+
+            response = {
+                "status": True,
+                "message": "Order Successfully Added",
+                        }                
+            return Response(data=response, status=status.HTTP_201_CREATED)
+
+                        
+        except Product.DoesNotExist:
+            order.delete()
+            response = {
+                    "status": True,
+                    "message": "Product Does Not Existr"
+                    }                
+            return Response(data=response, status=status.HTTP_404_NOT_FOUND)
+
+        except Error:
+            order.delete()
+            response = {
+                        "status": True,
+                        "message": "Order Could Not Be Added, Contact Admin"
+                        }  
+            return Response(data=response, status=status.HTTP_404_NOT_FOUND)  
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+
+
+# LIST DETAIL OF ONE PRODUCT / UPDATE / DELETE
+class OrderRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+    queryset = Order.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Order.objects.filter(owner=user)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response = {
+            "status": True,
+            "message": "",
+            "order": serializer.data
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
+
+
+    def patch(self, request,  *args, **kwargs):
+                
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = request.data
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        # self.perform_update(serializer)
+
+        instance.total_price = data['total_price']
+        instance.type = data['type']
+        instance.save()
+
+        productOrders = OrderProducts.objects.filter(order_id=instance.id)
+
+        for productsOrdersItem in productOrders.iterator():
+            productsOrdersItem.delete()
+
+        try:
+            for product in data['products']:
+                iproductstock = Product.objects.get(pk=product['id']).stock
+                
+                
+                
+                if (iproductstock - int(product['amount']) < 0):
+                    
+                    if(data['type'] == 'invoice'):
+                        response = {
+                                    "status": True,
+                                    "message": "Product Is Out Of Stock Error",
+                                }                
+                        return Response(data=response, status=status.HTTP_406_NOT_ACCEPTABLE)
+
+                orderProduct = OrderProducts.objects.create(product_id=product['id'],  order_id=instance.id, quantity=product['amount'])
+
+                if(data['type'] == 'receipt'):
+                    theproduct = Product.objects.get(pk=product['id'])
+                    theproduct.stock = theproduct.stock - int(product['amount'])
+                    theproduct.save()
+        
+        except Product.DoesNotExist:
+            response = {
+                    "status": True,
+                    "message": "Product Does Not Existr",
+                    # "ssffs": data['type']
+                    }                
+            return Response(data=response, status=status.HTTP_404_NOT_FOUND)
+
+            
+            
+
+        response = {
+            "status": True,
+            "message": "Updated Successfully",
+            "order": instance.id,
+            # "ssffs": data['type'] 
+                    }                
+        return Response(data=response, status=status.HTTP_201_CREATED)
+
+
+
+
+# LIST ALL CUSTOMER ORDERS [INVOICE/RECEIPT] / CREATE A CUSTOMER ORDER
+class StoreStatisticsView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Order.objects.filter(owner=user)
+
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        total_invoice = Order.objects.filter(owner=user).filter(type='invoice').aggregate(TOTAL=Sum('total_price'))['TOTAL']
+        total_receipt = Order.objects.filter(owner=user).filter(type='receipt').aggregate(TOTAL=Sum('total_price'))['TOTAL']
+        number_of_categories = Category.objects.filter(owner=user).count()
+  
+        stock_current = 0
+        products = Product.objects.filter(owner=user)
+        for iproduct in products.iterator():
+            stock_current = stock_current + iproduct.stock
+
+        stock_out = 0
+        damagesnumber = 0
+        orders = Order.objects.filter(owner=user).filter(type='receipt')
+        for item in orders.iterator():
+            productOrders = OrderProducts.objects.filter(order_id=item.id)
+            
+            for productOrdersItem in productOrders.iterator():
+                stock_out = stock_out + productOrdersItem.quantity
+
+                damages = Damages.objects.filter(product_id=productOrdersItem.product_id)
+                for damage in damages.iterator():
+                    damagesnumber = damagesnumber + damage.damages
+            
+
+                    
+                    
+        
+
+        
+
+        number_of_damages = 0
+        damages = Damages.objects.filter(owner=user)
+        for item in damages.iterator():
+            number_of_damages = number_of_damages + item.damages
+
+
+        stock_in = stock_current + stock_out + number_of_damages
+
+
         category = Category.objects.filter(owner=user)
         categoryList = []
         categoryAmountSoldList = []
 
         for item in category.iterator():
-
             amountQuantity = 0
-
             categoryname = item.name
             categoryAmountSoldList.append({
                 "categoryName": item.name,
                 "amount":  0
             })
 
-            myorder = Order.objects.filter(owner=user)
+            myorder = Order.objects.filter(owner=user).filter(type='receipt')
             for orderitems in myorder.iterator():
                 productQuantity = OrderProducts.objects.filter(
                     order_id=orderitems.id)
@@ -141,43 +543,32 @@ class CategoryListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, 
                 "amount": amountQuantity
             })
 
-        return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': categoryList})
-
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
-
-    def get_queryset(self):
-        user = self.request.user
-        return Category.objects.filter(owner=user)
-
-
-# LIST DETAIL OF ONE CATEGORY / UPDATE / DELETE
-
-class CategoryRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = CategorySerializer
-    queryset = Category.objects.all()
-
-    # Define Custom Queryset
-    def get_object(self, queryset=None, **kwargs):
-        item = self.kwargs.get('pk')
-        user = self.request.user
-        return get_object_or_404(Category, id=item, owner=user)
+        response = {
+                    "status": True,
+                    "message": "",
+                    "statistics" : {
+                        "cash_pending" : total_invoice,
+                        "cash_inhand" : total_receipt,
+                        "number_of_categories" : number_of_categories,
+                        "number_of_damages" : number_of_damages,
+                        "stock_inhand" : stock_current,
+                        "stock_out" : stock_out,
+                        "stock_in" : stock_in,
+                        "category_stat" : categoryList
+                    }
+                }
+        return Response(response)
+        
+    
 
 
-# LIST ALL CUSTOMER ORDERS / CREATE A CUSTOMER ORDER
 
-class OrderListCreateView(generics.ListCreateAPIView, mixins.ListModelMixin, mixins.CreateModelMixin):
-    permission_classes = [IsAuthenticated]
-    serializer_class = OrderSerializer
-    queryset = Order.objects.all()
 
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
 
-    def get_queryset(self):
-        user = self.request.user
-        return Order.objects.filter(owner=user)
+
+
+
+
 
 
 # LIST ALL CUSTOMER ORDERS / CREATE A CUSTOMER ORDER
@@ -210,6 +601,7 @@ def order_list(request):
                 {
                     "id": item.id,
                     "buyer": item.buyer,
+                    "buyer_location": item.buyer_location,
                     "products": productList,
                     "status": item.status,
                     "receipt":  item.receipt,
@@ -225,7 +617,7 @@ def order_list(request):
         data = request.data
         user = request.user
         new_order = Order.objects.create(
-            owner=user, buyer=data["buyer"], status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
+            owner=user, buyer=data["buyer"],buyer_location=data["buyer_location"] ,status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
         new_order.save()
 
         for product in data['products']:
@@ -308,6 +700,7 @@ def receipt_list(request):
                 {
                     "id": item.id,
                     "buyer": item.buyer,
+                    "buyer_location": item.buyer_location,
                     "products": productList,
                     "status": item.status,
                     "receipt":  item.receipt,
@@ -323,7 +716,7 @@ def receipt_list(request):
         data = request.data
         user = request.user
         new_order = Order.objects.create(
-            owner=user, buyer=data["buyer"], status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
+            owner=user, buyer=data["buyer"],buyer_location=data["buyer_location"],  status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
         new_order.save()
 
         for product in data['products']:
@@ -381,12 +774,14 @@ def receipt_details(request, id):
 @api_view(['GET', 'POST'])
 def invoice_list(request):
     if request.method == 'GET':
-        user = request.user
+        user = request.user.id
         order = Order.objects.filter(owner=user).filter(type="invoice")
         orderList = []
         for item in order.iterator():
             productList = []
             price = 0
+            totalPending = 0
+
             productsOrders = OrderProducts.objects.filter(order_id=item.id)
 
             for productsOrdersItem in productsOrders.iterator():
@@ -406,6 +801,7 @@ def invoice_list(request):
                 {
                     "id": item.id,
                     "buyer": item.buyer,
+                    "buyer_location": item.buyer_location,
                     "products": productList,
                     "status": item.status,
                     "receipt":  item.receipt,
@@ -413,6 +809,9 @@ def invoice_list(request):
                     "total_price":  price,
                 },
             )
+            # totalPending = totalPending + orderList.all().aggregate(TOTAL=Sum('total_price'))['TOTAL']
+            # print(totalPending)
+            
         serializer = OrderSerializer(order, many=True)
         return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': orderList})
 
@@ -421,7 +820,7 @@ def invoice_list(request):
         data = request.data
         user = request.user
         new_order = Order.objects.create(
-            owner=user, buyer=data["buyer"], status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
+            owner=user, buyer=data["buyer"],buyer_location=data["buyer_location"], status=data["status"], receipt=data["receipt"], type=data["type"], total_price=data["total_price"])
         new_order.save()
 
         for product in data['products']:
@@ -447,6 +846,7 @@ def invoice_list(request):
             return JsonResponse(status=status.HTTP_201_CREATED, data={'status': 'true', 'message': 'success', 'result': serializer.data})
         else:
             return JsonResponse(status=status.HTTP_400_BAD_REQUEST, data={'status': 'false', 'message': 'Bad Request', 'result': serializer.errors})
+
 
 
 # LIST A SINGLE CUSTOMER ORDERS DETAIL / UPDATE / DELETE
@@ -550,6 +950,14 @@ def orderCounts(request):
 
 
 @api_view(['GET'])
+def cash_invoice(request):
+    order = Order.objects.filter(type="invoice")
+    totalPending = 0
+    totalPending += order.all().aggregate(TOTAL=Sum('total_price'))['TOTAL']
+    print(totalPending)
+    return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': totalPending})
+
+@api_view(['GET'])
 def productCounts(request):
     user = request.user
     product_count = Product.objects.filter(owner=user).count()
@@ -621,3 +1029,21 @@ def categoryProducts(request, id):
         })
 
     return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': categoryList})
+
+#API to get products on low stock
+@api_view(['GET'])
+def lowstockproduct(request):
+    product = Product.objects.filter()
+    low_stock_products = []
+    for item in product.iterator():
+        if item.stock <= 5:  
+            low_stock_products.append({
+            "id": item.id,
+            "name": item.name,
+            # "description": item.description,
+            # "products": productList
+            })
+    return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': low_stock_products})       
+
+
+
