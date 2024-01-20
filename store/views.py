@@ -10,6 +10,12 @@ from rest_framework.decorators import api_view
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import generics
+import openpyxl
+from openpyxl.utils import get_column_letter
+# from django.http import HttpResponse
+from rest_framework.views import APIView
+from openpyxl import Workbook
+from openpyxl.styles import Alignment
 
 from .models import Product,Category, Damages, OrderProducts, Supplier, Buyer, Order, Delivery
 from .serializers import ProductSerializer, CategorySerializer, DamagesSerializer, OrderSerializer
@@ -44,11 +50,11 @@ def twilio(request):
 class CategoryListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
-    queryset = Category.objects.all()
+    # queryset = Category.objects.all()
 
-    def get_queryset(self):
-        user = self.request.user
-        return Category.objects.filter(owner=user)
+    # def get_queryset(self):
+    #     user = self.request.user
+    #     return Category.objects.filter(owner=user)
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
@@ -56,7 +62,7 @@ class CategoryListCreateView(generics.ListCreateAPIView):
         serializer = self.get_serializer(queryset, many=True)
         response = {
                     "status": True,
-                    "message": "",
+                    "message": "Valid request",
                     "categories" : serializer.data
 
                 }
@@ -64,13 +70,17 @@ class CategoryListCreateView(generics.ListCreateAPIView):
         
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        response = {
-            "status": True,
-            "message": "Category Successfully Added",
-                    }                
-        return Response(data=response, status=status.HTTP_201_CREATED)
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            return Response(
+                data={"status": True, "message": "Category Successfully Added"},
+                status=status.HTTP_201_CREATED,
+            )
+        else:
+            return Response(
+                data={"status": False, "message": "Invalid data"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -99,13 +109,6 @@ class CategoryRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
 
 
-
-
-
-
-
-
-
 # LIST ALL CUSTOMER PRODUCTS / CREATE A PRODUCT
 class ProductListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -129,6 +132,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
         return Response(response)
         
     def create(self, request, *args, **kwargs):
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -137,6 +141,10 @@ class ProductListCreateView(generics.ListCreateAPIView):
             "message": "Product Successfully Added",
                     }                
         return Response(data=response, status=status.HTTP_201_CREATED)
+    
+    # def perform_create(self, serializer, expiry_date):
+    #     # Save the owner along with the expiry_date if provided
+    #     serializer.save(owner=self.request.user, expiry_date=expiry_date)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -165,14 +173,6 @@ class ProductRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
                     }                
         return Response(data=response, status=status.HTTP_201_CREATED)
-
-
-
-
-
-
-
-
 
 
 # LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
@@ -235,13 +235,6 @@ class DamagesListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
-
-
-
-
-
-
-
 
 
 # LIST ALL CUSTOMER ORDERS [INVOICE/RECEIPT] / CREATE A CUSTOMER ORDER
@@ -331,12 +324,9 @@ class OrderListCreateView(generics.ListCreateAPIView):
 
                 orderProduct = OrderProducts.objects.create(product_id=product['id'],  order_id=order.id, quantity=product['amount'])
 
-                print("dddd")
-                print(type)
 
                 if(type == 'receipt'):
                     theproduct = Product.objects.get(pk=product['id'])
-                    theproduct.stock = theproduct.stock - product['amount']
                     theproduct.save()
 
                 orderProduct.save()
@@ -366,8 +356,6 @@ class OrderListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
-
-
 
 
 # LIST DETAIL OF ONE PRODUCT / UPDATE / DELETE
@@ -434,7 +422,7 @@ class OrderRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         except Product.DoesNotExist:
             response = {
                     "status": True,
-                    "message": "Product Does Not Existr",
+                    "message": "Product Does Not Exist",
                     # "ssffs": data['type']
                     }                
             return Response(data=response, status=status.HTTP_404_NOT_FOUND)
@@ -487,12 +475,6 @@ class StoreStatisticsView(generics.ListAPIView):
                 for damage in damages.iterator():
                     damagesnumber = damagesnumber + damage.damages
             
-
-                    
-                    
-        
-
-        
 
         number_of_damages = 0
         damages = Damages.objects.filter(owner=user)
@@ -559,16 +541,6 @@ class StoreStatisticsView(generics.ListAPIView):
                 }
         return Response(response)
         
-    
-
-
-
-
-
-
-
-
-
 
 
 # LIST ALL CUSTOMER ORDERS / CREATE A CUSTOMER ORDER
@@ -1046,4 +1018,28 @@ def lowstockproduct(request):
     return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': low_stock_products})       
 
 
+class ProductReportView(APIView):
+    def get(self, request, *args, **kwargs):
+        # Retrieve product information
+        products = Product.objects.all()
+
+        # Prepare the data for each product
+        product_data = []
+        for product in products:
+            product_data.append({
+                "Name": product.name,
+                "Category": product.category.name if product.category else "",
+                "Stock In": product.stock,
+                "Stock Out": self.get_stock_out(product),
+                "Stock In Hand": product.stock - self.get_stock_out(product),
+                "Expiry Date": product.expiry_date.strftime('%Y-%m-%d') if product.expiry_date else ""
+            })
+
+        # Return the data as JSON
+        return JsonResponse(status=200, data={'status': 'true', 'message': 'success','result':product_data}) #safe=False)
+
+    def get_stock_out(self, product):
+        # Calculate stock out based on orders with type 'receipt'
+        stock_out = product.orderproducts_set.filter(order__type='receipt').aggregate(Sum('quantity'))['quantity__sum']
+        return stock_out if stock_out else 0
 

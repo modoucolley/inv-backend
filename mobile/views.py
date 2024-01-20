@@ -13,8 +13,8 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import generics
 
-from .models import Product,TransactionProducts, Damages,Transaction
-from .serializers import ProductSerializer, DamagesSerializer,TransactionSerializer
+from .models import mProduct,TransactionProducts, Damages,Transaction
+from .serializers import mProductSerializer, DamagesSerializer,TransactionSerializer
 
 
 # FORM DATA FOR PRODUCT IMAGE
@@ -43,16 +43,16 @@ def twilio(request):
 # LIST ALL CUSTOMER PRODUCTS / CREATE A PRODUCT
 class MobileProductListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    serializer_class = mProductSerializer
+    queryset = mProduct.objects.all()
 
     def get_queryset(self):
         user = self.request.user
-        return Product.objects.filter(owner=user)
+        return mProduct.objects.filter(owner=user)
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
-        queryset = Product.objects.filter(owner=user)
+        queryset = mProduct.objects.filter(owner=user)
         serializer = self.get_serializer(queryset, many=True)
         response = {
                     "status": True,
@@ -79,12 +79,12 @@ class MobileProductListCreateView(generics.ListCreateAPIView):
 # LIST DETAIL OF ONE PRODUCT / UPDATE / DELETE
 class ProductRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = ProductSerializer
-    queryset = Product.objects.all()
+    serializer_class = mProductSerializer
+    queryset = mProduct.objects.all()
 
     def get_queryset(self):
         user = self.request.user
-        return Product.objects.filter(owner=user)
+        return mProduct.objects.filter(owner=user)
 
         
 
@@ -103,6 +103,10 @@ class TransactionListCreateAPIView(generics.ListCreateAPIView):
     queryset = Transaction.objects.all()
     serializer_class = TransactionSerializer
 
+    def get_queryset(self):
+        user = self.request.user
+        return Transaction.objects.filter(owner=user)
+
     def perform_create(self, serializer):
         transaction = serializer.save()
         productstock = transaction.products
@@ -116,10 +120,21 @@ class TransactionListCreateAPIView(generics.ListCreateAPIView):
             productstock.save()
             transaction.current_stock = productstock.stock
 
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        response = {
+            "status": True,
+            "message": "",
+            "product": serializer.data
+
+                    }       
+        return Response(data=response, status=status.HTTP_201_CREATED)
 
 
 
-# LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
+
+# LIST ALL CUSTOMER PRODUCT THAT ARE DAMAGED
 class DamagesListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = DamagesSerializer
@@ -160,38 +175,18 @@ class DamagesListCreateView(generics.ListCreateAPIView):
 #API to get products on low stock
 @api_view(['GET'])
 def lowstockproduct(request):
-    product = Product.objects.filter()
+    product = mProduct.objects.filter()
     low_stock_products = []
     for item in product.iterator():
         if item.stock <= 5:  
             low_stock_products.append({
             "id": item.id,
             "name": item.name,
-            # "description": item.description,
-            # "products": productList
             })
     return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': low_stock_products}) 
 
 
-@api_view(['GET'])
-def total_stock_in(request):
-    total = Transaction.objects.filter(type="in").aggregate(TOTAL=Sum('quantity'))['TOTAL']
-    return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': total})
-
-@api_view(['GET'])
-def total_stock_out(request):
-    total = Transaction.objects.filter(type="out").aggregate(TOTAL=Sum('quantity'))['TOTAL']
-    return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': total})
-
-@api_view(['GET'])
-def total_stock_in_hand(request):
-    total_in = Transaction.objects.filter(type="in").aggregate(TOTAL=Sum('quantity'))['TOTAL']
-    total_out = Transaction.objects.filter(type="out").aggregate(TOTAL=Sum('quantity'))['TOTAL']
-    total_in_hand = total_in - total_out
-
-    return JsonResponse(status=200, data={'status': 'true', 'message': 'success', 'result': total_in_hand})
-
-# LIST ALL CUSTOMER ORDERS [INVOICE/RECEIPT] / CREATE A CUSTOMER ORDER
+# API FOR THE STOCK STATS
 class StoreStatisticsView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = TransactionSerializer
@@ -203,10 +198,11 @@ class StoreStatisticsView(generics.ListAPIView):
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
-        total_stock_in = Transaction.objects.filter(owner=user).filter(type='in').aggregate(TOTAL=Sum('quantity'))['TOTAL']
-        total_stock_out = Transaction.objects.filter(owner=user).filter(type='out').aggregate(TOTAL=Sum('quantity'))['TOTAL']
+        total_stock_in = int(Transaction.objects.filter(owner=user).filter(type='in').aggregate(TOTAL=Sum('quantity'))['TOTAL'])
+        total_stock_out = int(Transaction.objects.filter(owner=user).filter(type='out').aggregate(TOTAL=Sum('quantity'))['TOTAL'])
 
         total_stock_in_hand = total_stock_in - total_stock_out
+
 
         response = {
                     "status": True,
@@ -218,4 +214,3 @@ class StoreStatisticsView(generics.ListAPIView):
                     }
                 }
         return Response(response)
-        
