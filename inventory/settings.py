@@ -8,7 +8,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SECRET_KEY = 'k2z9po4i#n+1p(^ny1el2c!om(^-l+_%&ob0azk0-ike*-)81e'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
@@ -105,10 +105,11 @@ USE_L10N = True
 
 USE_TZ = True
 
+
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
-STATIC_URL = '/static/assets/'
+STATIC_URL = '/static/'
 
 STATIC_ROOT = './static/assets/'
 
@@ -163,6 +164,7 @@ REST_FRAMEWORK = {
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://139.59.208.8:443",
     "http://159.223.202.117",
 ]
 
@@ -175,9 +177,5 @@ CORS_ORIGIN_WHITELIST = (
 
 ALLOWED_HOSTS = ["*"]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8080", 
-    "http://127.0.0.1:8080"
-]
 
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8080']
