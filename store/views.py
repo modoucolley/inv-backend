@@ -158,6 +158,23 @@ class ProductRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
         return Response(data=response, status=status.HTTP_201_CREATED)
 
 
+class ProductImagesListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]    
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        product_images = Product.objects.filter(owner=user).values_list('image', flat=True)
+        response = {
+                    "status": True,
+                    "message": "Success",
+                    "images" : product_images
+
+                }
+        return Response(response)
+        
+
+
+
 # LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
 class DamagesListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -266,6 +283,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
                     "status": item.status,
                     "receipt":  item.ref,
                     "type": item.type,
+                    "buyer_phone": item.buyer_phone,
                     "total_price":  price,
                 },
             )
@@ -285,7 +303,7 @@ class OrderListCreateView(generics.ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
         data = request.data
         type = self.request.query_params.get('type')
-        order = Order.objects.create(owner=request.user, buyer=data["buyer"],buyer_location=data["buyer_location"] ,status=data["status"], ref=data["ref"], type=data["type"], total_price=data["total_price"])
+        order = Order.objects.create(owner=request.user, buyer=data["buyer"],buyer_location=data["buyer_location"], buyer_phone= data["buyer_phone"], status=data["status"], ref=data["ref"], type=data["type"], total_price=data["total_price"])
         order.save()
 
         try:
@@ -1014,7 +1032,8 @@ class ProductReportView(APIView):
                 "Stock In": product.stock,
                 "Stock Out": self.get_stock_out(product),
                 "Stock In Hand": product.stock - self.get_stock_out(product),
-                "Expiry Date": product.expiry_date.strftime('%Y-%m-%d') if product.expiry_date else ""
+                "Expiry Date": product.expiry_date.strftime('%Y-%m-%d') if product.expiry_date else "",
+                "Added Date": product.created_date
             })
 
         # Return the data as JSON
