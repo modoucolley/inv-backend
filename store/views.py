@@ -383,9 +383,15 @@ class OrderRetreiveUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
         # PART PAYMENT
         if 'price_paid' in request.data:
-            if (instance.total_price >= (float(instance.price_paid) + float(data['price_paid']))):
+            if (instance.total_price > (float(instance.price_paid) + float(data['price_paid']))):
                 instance.price_paid = float(
                     instance.price_paid) + float(data['price_paid'])
+
+            elif (instance.total_price == (float(instance.price_paid) + float(data['price_paid']))):
+                instance.price_paid = float(
+                    instance.price_paid) + float(data['price_paid'])
+                instance.type = 'receipt'
+
             else:
                 response = {
                     "status": False,
