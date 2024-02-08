@@ -121,6 +121,32 @@ class ProductListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+       
+
+        
+        if 'image' in request.data:
+            # Define a maximum file size (in bytes)
+            print("10 MB IN BYES") # 10MB 
+            print( 10 * 1024 * 1024) # 10MB 
+            print("Image Size")
+            image_file = request.FILES.get('image')
+            print(image_file.size)
+            print("Django Upload Max Size in Bytes")
+            print(settings.DATA_UPLOAD_MAX_MEMORY_SIZE)
+
+           
+            # Proceed with file processing if it's within the limit
+            # Your logic to handle the file here
+            # ...
+            return JsonResponse(
+                {
+                    '10 MB IN BYTES': 10 * 1024 * 1024,
+                    'IMAGE SIZE': image_file.size,
+                    'Django Upload Max Size in Bytes': settings.DATA_UPLOAD_MAX_MEMORY_SIZE
+                })
+
+
         self.perform_create(serializer)
         response = {
             "status": True,
