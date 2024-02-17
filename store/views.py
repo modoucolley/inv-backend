@@ -106,6 +106,8 @@ class ProductListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         return Product.objects.filter(owner=user)
 
+    
+
     def get(self, request, *args, **kwargs):
         user = self.request.user
         queryset = Product.objects.filter(owner=user, is_active=True)
@@ -117,6 +119,13 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
         }
         return Response(response)
+
+    def get_serializer(self, *args, **kwargs):
+        kwargs['user'] = self.request.user
+        print("Trying to send ")
+        print(self.request.user)
+        return super().get_serializer(*args, **kwargs)
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
