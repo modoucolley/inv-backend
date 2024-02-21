@@ -139,7 +139,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
         self.perform_create(serializer)
         response = {
             "status": True,
-            "message": "Product Successfully Added",
+            "message": "Product Successfully Added V2.1",
         }
         return Response(data=response, status=status.HTTP_201_CREATED)
 
