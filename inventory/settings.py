@@ -198,5 +198,5 @@ CSRF_TRUSTED_ORIGINS = ['http://localhost:8080']
 
 
 CRONJOBS = [
-    ('* * * * *', 'store.management.commands.check_expired_products')
+    ('*/1 * * * *', 'store.management.commands.check_expired_products.my_scheduled_job')
 ]

@@ -88,6 +88,9 @@ class Damages(models.Model):
     created_date = models.DateField(auto_now_add=True)
     owner = models.ForeignKey('users.CustomUser', related_name='damages', on_delete=models.CASCADE, default='')
 
+    def __str__(self):
+        return self.product
+
 
 class Supplier(models.Model):
     companyName = models.CharField(max_length=200, default='')
