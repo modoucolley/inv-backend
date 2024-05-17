@@ -8,6 +8,12 @@ class Command(BaseCommand):
     help = 'Check for expired products and add them to damages'
     print("Cron job running")
 
+    file_path = 'django.log'
+    data = "Hello, world!\n"
+    with open(file_path, 'w') as file:
+        # Write the data to the file
+        file.write(data)
+
     def handle(self, *args, **kwargs):
         # Get today's date
         today = date.today()

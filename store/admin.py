@@ -6,7 +6,10 @@ from .models import (
     Category,
     Product,
     Order,
-    Delivery
+    Delivery,
+    OrderProducts,
+    Damages,
+    StoreActivity
 )
 
 
@@ -24,3 +27,6 @@ admin.site.register(Product)
 admin.site.register(Order)
 admin.site.register(Delivery)
 admin.site.register(Category)
+admin.site.register(OrderProducts)
+admin.site.register(Damages)
+admin.site.register(StoreActivity)

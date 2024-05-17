@@ -83,7 +83,7 @@ class OrderProducts(models.Model):
 
 class Damages(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    category = models.CharField(max_length=220)
+    category = models.CharField(max_length=210)
     damages = models.PositiveIntegerField(default=0) 
     created_date = models.DateField(auto_now_add=True)
     owner = models.ForeignKey('users.CustomUser', related_name='damages', on_delete=models.CASCADE, default='')
