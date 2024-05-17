@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 from datetime import date
 from store.models import Product, Damages
 
-def my_scheduled_job(self, *args, **kwargs):
+def my_scheduled_job():
     # Get today's date
     today = date.today()
     
@@ -15,5 +15,4 @@ def my_scheduled_job(self, *args, **kwargs):
         Damages.objects.create(
             owner=product.owner, product=product, category=product.category, damages=product.stock)
     
-    self.stdout.write(self.style.SUCCESS('Successfully checked for expired products and added them to damages'))
 
