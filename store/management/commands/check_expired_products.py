@@ -3,7 +3,7 @@ from django.core.management.base import BaseCommand
 from datetime import date
 from store.models import Product, Damages
 
-def handle(self, *args, **kwargs):
+def my_scheduled_job(self, *args, **kwargs):
     # Get today's date
     today = date.today()
     
