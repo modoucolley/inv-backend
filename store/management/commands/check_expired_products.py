@@ -12,7 +12,14 @@ def my_scheduled_job():
     
     # Add expired products to damages
     for product in expired_products:
-        Damages.objects.create(
+        try:
+            damage = Damages.objects.get(product=product)
+            # Update the damages number field
+            damage.damages = product.stock
+            damage.save()
+
+        except Damages.DoesNotExist:
+            # Create a new damages entry
+            Damages.objects.create(
             owner=product.owner, product=product, category=product.category, damages=product.stock)
     
-
