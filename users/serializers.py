@@ -23,7 +23,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = [ 'email', 'username', 'password', 'first_name', 'last_name', 'profile', 'company_name', 'contact', 'postcode', 'city']
+        fields = [ 'email', 'username', 'password', 'first_name', 'last_name', 'profile', 'company_name', 'company_description', 'contact', 'postcode', 'city']
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -88,7 +88,7 @@ class UpdateUserProfileSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = ['first_name', 'last_name', 'profile', 'company_name', 'contact', 'postcode', 'city']
+        fields = ['first_name', 'last_name', 'profile', 'company_name', 'company_description', 'contact', 'postcode', 'city']
 
     def validate_company_name(self, value):
         user = self.context['request'].user

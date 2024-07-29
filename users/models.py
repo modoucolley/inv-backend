@@ -18,6 +18,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
     company_name = models.CharField(max_length=120, default='')
     start_date = models.DateTimeField(default=timezone.now)
     contact = models.CharField(max_length=120, default='')
+    company_description = models.CharField(max_length=400, default='')
     city = models.CharField(max_length=120, default='')
     postcode = models.CharField(max_length=120, default='')
     is_staff = models.BooleanField(default=False)

@@ -143,6 +143,7 @@ class UserUpdateView(generics.UpdateAPIView):
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
+        print(request.data)
         updateUserSerializer = UpdateUserProfileSerializer(data=request.data, context={'request': request})
         updateUserSerializer.is_valid(raise_exception=True)
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
