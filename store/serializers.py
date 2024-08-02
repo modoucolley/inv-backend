@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Category, Damages, Delivery, OrderProducts, Supplier, Buyer, Order, Delivery, StoreActivity
+from .models import Product, Category, Damages,  Transaction, Delivery, OrderProducts, Supplier, Buyer, Order, Delivery, StoreActivity
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -89,6 +89,24 @@ class DamagesSerializer(serializers.ModelSerializer):
     class Meta:
         model = Damages
         fields = ('id', 'product', 'category', 'damages', 'owner')
+
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+
+    product = serializers.SlugRelatedField(
+                read_only=False,
+                slug_field="name",
+                queryset=Product.objects.all()
+                )
+
+    owner = serializers.PrimaryKeyRelatedField(
+        read_only=True,
+    )
+
+    class Meta:
+        model = Transaction
+        fields = ('id', 'product', 'amount', 'type', 'owner', 'created_date')
 
 
 

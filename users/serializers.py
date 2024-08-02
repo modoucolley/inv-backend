@@ -23,7 +23,7 @@ class CustomUserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = [ 'email', 'username', 'password', 'first_name', 'last_name', 'profile', 'company_name', 'company_description', 'contact', 'postcode', 'city']
+        fields = [ 'email', 'phone_number', 'username', 'password', 'first_name', 'last_name', 'profile', 'company_name', 'company_description', 'contact', 'postcode', 'city']
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -32,30 +32,44 @@ class CustomUserSerializer(serializers.ModelSerializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(
-            required=True,
+            required=False,
             validators=[UniqueValidator(queryset=CustomUser.objects.all())]
             )
-    password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
-    password2 = serializers.CharField(write_only=True, required=True)
+    phone_number = serializers.CharField(
+            required=False,
+            validators=[UniqueValidator(queryset=CustomUser.objects.all())]
+            )
+    password = serializers.CharField(write_only=True, required=False, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True, required=False)
+    pin = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = CustomUser
-        fields = [ 'email', 'username', 'password', 'password2', 'first_name', 'last_name', 'company_name', 'contact', 'postcode', 'city']
+        fields = [ 'email', 'phone_number', 'username', 'password', 'password2', 'pin', 'first_name', 'last_name', 'company_name', 'contact', 'postcode', 'city']
         extra_kwargs = {
             'first_name': {'required': True},
             'last_name': {'required': True}
         }
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Password fields didn't match."})
+
+        if not attrs.get('email') and not attrs.get('phone_number'):
+            raise serializers.ValidationError('Either email or phone number is required for registration.')
+        if attrs.get('email') and not attrs.get('password'):
+            if attrs['password'] != attrs['password2']:
+                raise serializers.ValidationError({"password": "Password fields didn't match."})
+            raise serializers.ValidationError('Password is required with email.')
+        if attrs.get('phone_number') and not attrs.get('pin'):
+            raise serializers.ValidationError('Pin is required with phone number.')
 
         return attrs
 
     def create(self, validated_data):
         user = CustomUser.objects.create(
             username=validated_data['username'],
-            email=validated_data['email'],
+            email=validated_data.get('email'),
+            phone_number=validated_data['phone_number'],
+            pin=validated_data.get('pin'),
             first_name=validated_data['first_name'],
             last_name=validated_data['last_name'],
             profile = 'profiles/default.png',
@@ -65,7 +79,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             city=validated_data['city']
         )
 
-        user.set_password(validated_data['password'])
+        user.set_password(validated_data.get('password'))
         user.save()
         Token.objects.create(user=user)
         return user
@@ -74,12 +88,25 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(required=True)
-    password = serializers.CharField(required=True)
+    email = serializers.EmailField(required=False)
+    password = serializers.CharField(required=False)
+    phone_number = serializers.CharField(required=False)
+    pin = serializers.CharField(required=False)
+
+
+    def validate(self, data):
+        if not data.get('email') and not data.get('phone_number'):
+            raise serializers.ValidationError('Either email or phone number is required for login.')
+        if data.get('email') and not data.get('password'):
+            raise serializers.ValidationError('Password is required with email.')
+        if data.get('phone_number') and not data.get('pin'):
+            raise serializers.ValidationError('Pin is required with phone number.')
+        return data
+    
 
     class Meta:
         model = CustomUser
-        fields = [ 'email',  'password']
+        fields = [ 'email',  'password', 'phone_number', 'pin']
 
 
 

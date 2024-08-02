@@ -37,13 +37,22 @@ class LoginUser(APIView):
     def post(self, request: Request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        email = request.data.get('email')
-        password = request.data.get('password')
-        user = authenticate(email=email, password=password)
+        email = serializer.validated_data.get('email')
+        password = serializer.validated_data.get('password')
+        phone_number = serializer.validated_data.get('phone_number')
+        pin = serializer.validated_data.get('pin')
+
+        
+
+        user = authenticate(request, email=email, password=password, phone_number=phone_number, pin=pin)
+        # user = authenticate(email=email, password=password)
         if user is not None:
             user_logged_in.send(sender=self.__class__, request=request, user=user)
 
             serializer = CustomUserSerializer(user)
+            
+            if not hasattr(user, 'auth_token'):
+                Token.objects.create(user=user)
             response = {
                 "status": True,
                 "message": "login Successful",

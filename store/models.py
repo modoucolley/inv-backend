@@ -89,6 +89,20 @@ class Damages(models.Model):
     owner = models.ForeignKey('users.CustomUser', related_name='damages', on_delete=models.CASCADE, default='')
 
 
+
+class Transaction(models.Model):
+    TYPE_CHOICE = (
+        ('In', 'In'),
+        ('Out', 'Out'),
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    amount = models.PositiveIntegerField(default=0) 
+    type=models.CharField(max_length=20, choices=TYPE_CHOICE, default='')
+    created_date = models.DateField(auto_now_add=True)
+    owner = models.ForeignKey('users.CustomUser', related_name='transactions', on_delete=models.CASCADE, default='')
+
+
+
 class Supplier(models.Model):
     companyName = models.CharField(max_length=200, default='')
     country = models.CharField(max_length=200, default='')

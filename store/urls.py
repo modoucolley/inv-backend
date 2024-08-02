@@ -6,6 +6,7 @@ from .views import (
      BuyerListCreateView, BuyerOrderListCreateView,
      OrderListCreateView, OrderRetreiveUpdateDeleteView,
      DamagesListCreateView,
+     TransactionsListCreateView,
      StoreStatisticsView,
      ProductReportView,
      StoreInfoListView,
@@ -33,6 +34,9 @@ urlpatterns = [
      path('buyers', BuyerListCreateView.as_view(), name='listCreateBuyers'),
      path('buyers-invoices', BuyerOrderListCreateView.as_view(), name='listBuyerInvoices'),
      path('damages', DamagesListCreateView.as_view(), name='listcreatedamages'),
+    
+     path('transactions', TransactionsListCreateView.as_view(), name='listcreateTransactions'),
+     
      path('report', ProductReportView.as_view(), name='product_report'),
      path('store-info', StoreInfoListView.as_view(), name='StoreInfoListView'),
      path('store-activity', StoreActivityListView.as_view(), name='StoreActivityListView'),

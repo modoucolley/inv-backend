@@ -11,7 +11,8 @@ def upload_to(instance, filename):
 
 
 class CustomUser(AbstractUser, PermissionsMixin):
-    email = models.EmailField(_('email address'), unique=True)
+    email = models.EmailField(_('email address'), unique=True, null=True, blank=True)
+    phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
     first_name = models.CharField(max_length=120, default='')
     last_name = models.CharField(max_length=120, default='')
     profile = models.ImageField(_('Image'), upload_to= upload_to, default='profiles/default.png')
@@ -24,6 +25,7 @@ class CustomUser(AbstractUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     is_mobile_user = models.BooleanField(default=False)
     is_active = models.BooleanField(default=False)
+    pin = models.CharField(max_length=6, null=True, blank=True)
     groups = models.ManyToManyField(Group, blank=True, related_name='custom_users')
     
     USERNAME_FIELD = 'email'
@@ -32,8 +34,11 @@ class CustomUser(AbstractUser, PermissionsMixin):
     objects = CustomUserManager()
 
     def __str__(self):
-        return self.email
- 
+        return self.email or self.phone_number
+
+    def check_pin(self, pin):
+        return self.pin == pin
+    
 
 class UserActivity(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

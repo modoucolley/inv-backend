@@ -12,8 +12,8 @@ from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import generics
 from rest_framework.views import APIView
-from .models import Product, Category, Damages, OrderProducts, Supplier, Buyer, Order, Delivery, StoreActivity
-from .serializers import ProductSerializer,ProductEditSerializer, CategorySerializer, BuyerSerializer, DamagesSerializer, OrderSerializer, StoreActivitySerializer
+from .models import Product, Category, Damages, Transaction, OrderProducts, Supplier, Buyer, Order, Delivery, StoreActivity
+from .serializers import ProductSerializer,ProductEditSerializer, CategorySerializer, BuyerSerializer, DamagesSerializer, TransactionSerializer ,OrderSerializer, StoreActivitySerializer
 from users.models import CustomUser
 
 # FORM DATA FOR PRODUCT IMAGE
@@ -339,6 +339,81 @@ class DamagesListCreateView(generics.ListCreateAPIView):
                     response = {
                         "status": True,
                         "message": "Damages Successfully Added",
+                    }
+                    return Response(data=response, status=status.HTTP_201_CREATED)
+
+        except Product.DoesNotExist:
+            response = {
+                "status": True,
+                "message": "Product Does Not Existr"
+            }
+            return Response(data=response, status=status.HTTP_404_NOT_FOUND)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+
+# LIST ALL CUSTOMER PRODUCT CATEGORIES / CREATE A PRODUCT CATEGORY
+class TransactionsListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = TransactionSerializer
+    queryset = Transaction.objects.all()
+
+    def get_queryset(self):
+        user = self.request.user
+        return Transaction.objects.filter(owner=user)
+
+    def get(self, request, *args, **kwargs):
+        user = self.request.user
+        queryset = Transaction.objects.filter(owner=user)
+        serializer = self.get_serializer(queryset, many=True)
+        response = {
+            "status": True,
+            "message": "",
+            "transactions": serializer.data
+
+        }
+        return Response(response)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = request.data
+
+
+
+        try:
+            iproduct = Product.objects.get(name=data['product'])
+
+            transaction = Transaction.objects.create(
+                    owner=request.user, product=iproduct, amount=data["amount"], type=data['type'])
+            transaction.save()
+
+            response = {
+                        "status": True,
+                        "message": "Transaction Successfully Added",
+                    }
+            return Response(data=response, status=status.HTTP_201_CREATED)
+
+            
+            if (iproduct.stock - int(data['amount']) < 0):
+                response = {
+                    "status": True,
+                    "message": "Transactions is more than Of Stock Error",
+                }
+                return Response(data=response, status=status.HTTP_406_NOT_ACCEPTABLE)
+            else:
+                serializer = ProductSerializer(
+                    iproduct, data={'stock': iproduct.stock - int(data['amount'])}, partial=True)
+                transaction = Transaction.objects.create(
+                    owner=request.user, product=iproduct, damages=data["amount"], type=data['type'])
+                transaction.save()
+
+                if serializer.is_valid():
+                    serializer.save()
+                    response = {
+                        "status": True,
+                        "message": "Transaction Successfully Added",
                     }
                     return Response(data=response, status=status.HTTP_201_CREATED)
 
